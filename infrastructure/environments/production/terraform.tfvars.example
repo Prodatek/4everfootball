@@ -1,0 +1,12 @@
+# Copy this to terraform.tfvars (gitignored) and fill in the real values.
+
+aws_region = "eu-west-1"
+
+meilisearch_host    = "https://ms-xxxxxxxx.meilisearch.io"
+meilisearch_api_key = "REPLACE_ME"
+
+# Leave these as a placeholder for the first apply (see infrastructure/README.md
+# step 4) — the ECS services will fail to start tasks until real images exist
+# in ECR, which is expected. Set to a real tag (e.g. a git SHA) once pushed.
+api_image_tag = "REPLACE_ME_WITH_GIT_SHA"
+web_image_tag = "REPLACE_ME_WITH_GIT_SHA"

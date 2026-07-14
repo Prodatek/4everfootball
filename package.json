@@ -1,6 +1,7 @@
 {
   "name": "4everfootball",
   "private": true,
+  "packageManager": "pnpm@11.13.0",
   "engines": {
     "node": ">=20"
   },

@@ -1,0 +1,12 @@
+{
+  "name": "@4ef/infra-scripts",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "render-env": "node render-env.mjs"
+  },
+  "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.685.0"
+  }
+}

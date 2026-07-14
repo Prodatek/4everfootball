@@ -7,6 +7,12 @@ coverage/
 *.log
 .env
 .env.*
-!.env.example
 .DS_Store
 Thumbs.db
+
+# Terraform
+infrastructure/**/.terraform/
+infrastructure/**/*.tfstate
+infrastructure/**/*.tfstate.*
+infrastructure/**/terraform.tfvars
+infrastructure/generated/

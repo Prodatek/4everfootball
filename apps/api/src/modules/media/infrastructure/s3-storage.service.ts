@@ -16,16 +16,18 @@ export class S3StorageService {
   private readonly publicUrl: string;
 
   constructor(private readonly config: ConfigService) {
+    const accessKeyId = this.config.get<string>('S3_ACCESS_KEY_ID');
+    const secretAccessKey = this.config.get<string>('S3_SECRET_ACCESS_KEY');
+
     this.client = new S3Client({
       endpoint: this.config.get<string>('S3_ENDPOINT'),
       region: this.config.get<string>('S3_REGION'),
-      credentials: {
-        accessKeyId: this.config.get<string>('S3_ACCESS_KEY_ID') as string,
-        secretAccessKey: this.config.get<string>(
-          'S3_SECRET_ACCESS_KEY',
-        ) as string,
-      },
-      forcePathStyle: true, // required for MinIO / most non-AWS S3-compatible providers
+      // Static keys + path-style addressing are for MinIO/local dev. When
+      // they're absent (real AWS S3), fall back to the SDK's default
+      // credential chain (the ECS task role) and virtual-hosted addressing.
+      ...(accessKeyId && secretAccessKey
+        ? { credentials: { accessKeyId, secretAccessKey }, forcePathStyle: true }
+        : {}),
     });
     this.bucket = this.config.get<string>('S3_BUCKET') as string;
     this.publicUrl = this.config.get<string>('S3_PUBLIC_URL') as string;

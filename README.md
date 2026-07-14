@@ -8,16 +8,36 @@ Monorepo (pnpm workspaces): `apps/api` (NestJS + Prisma + PostgreSQL), `apps/web
 pnpm install
 cp apps/api/.env.example apps/api/.env    # fill in JWT secrets
 cp apps/web/.env.example apps/web/.env.local
-docker compose up -d                      # postgres, redis, meilisearch, minio
+docker compose up -d postgres redis meilisearch minio minio-init
 pnpm --filter @4ef/api exec prisma migrate dev
 ```
 
-## Run
+## Run (local, outside Docker)
 
 ```bash
 pnpm dev:api    # http://localhost:4000  (Swagger docs at /docs)
 pnpm dev:web    # http://localhost:3000
 ```
+
+## Run (fully dockerized)
+
+`docker-compose.yml` also builds the API and web app themselves (via
+`apps/api/Dockerfile` / `apps/web/Dockerfile`, both pnpm-workspace-aware
+multi-stage builds), so the whole stack can run without a local Node install:
+
+```bash
+docker compose up -d --build
+docker compose run --rm api-migrate   # applies Prisma migrations, one-shot
+```
+
+- API: http://localhost:4000, web: http://localhost:3000.
+- `prisma-studio` runs alongside on its default port, http://localhost:5555,
+  pointed at the same `postgres` container — useful for inspecting/seeding
+  data without leaving the Docker stack.
+- `api-migrate` targets the pre-pruned build stage (the `api` service's own
+  image drops `devDependencies`, including the `prisma` CLI, via
+  `pnpm deploy --prod`), so it's the one to run for migrations rather than
+  `docker compose exec api ...`.
 
 ## Status
 
@@ -33,5 +53,6 @@ pnpm dev:web    # http://localhost:3000
 - Admin Dashboard: a unified `/admin` shell with a role-filtered sidebar (previously the admin pages were only reachable one-by-one via a header dropdown). Dashboard home shows platform-wide stat totals plus live/upcoming fixtures. Also added: admin user management (`/admin/users`) — list users, edit roles/active status, with a privilege-escalation guard (only a super admin can grant/revoke the super admin role; nobody can edit their own roles) — this closes a real gap, since until now there was no way for anyone to actually assign the SCOUT/EDITOR/ADMIN roles that the RBAC system and every role-gated feature so far have depended on. Also added a Live Scouting hub (`/admin/scouting`) surfacing live/upcoming fixtures for scouts.
 - Media: S3-compatible file library (MinIO locally; swapping to real S3/R2/Spaces in production is an env-var change, no code change) via presigned-URL uploads — the browser uploads bytes directly to storage, never through our API. A reusable upload component is wired into the Team and News forms (replacing plain "paste a URL" fields), plus a standalone media library at `/admin/media`.
 - Search: Meilisearch indexes Teams, Players, Competitions, and published News. Each of those services pushes index updates on create/update/delete (deactivated/unpublished/deleted records are removed from the index); a Meilisearch outage is logged and swallowed, never fails the underlying write. A search bar in the header and a `/search` results page query all four indexes in parallel; `/admin` has a "Reindex search" action to rebuild the indexes from Postgres.
+- Dockerized deployment: `apps/api/Dockerfile` and `apps/web/Dockerfile` are multi-stage, pnpm-workspace-aware builds; `docker-compose.yml` now also runs `api`, `web`, a one-shot `api-migrate`, and `prisma-studio` (default port 5555) alongside the existing infra services — see the README's "Run (fully dockerized)" section. AWS infrastructure lives in `infrastructure/` (Terraform: VPC, RDS, ElastiCache, S3, ECR, two ALBs, ECS Fargate services, Secrets Manager) with its own runbook at `infrastructure/README.md`; Meilisearch runs on Meilisearch Cloud rather than self-hosted AWS compute.
 
 Everything else in the MVP scope (Public Website) is not yet implemented — everything else is really about polish/assembly of what already exists rather than a new module.

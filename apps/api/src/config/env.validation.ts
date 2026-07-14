@@ -2,6 +2,7 @@ import { plainToInstance } from 'class-transformer';
 import {
   IsIn,
   IsInt,
+  IsOptional,
   IsString,
   MinLength,
   validateSync,
@@ -40,11 +41,15 @@ class EnvironmentVariables {
   @IsString()
   S3_REGION!: string;
 
+  // Unset in production: the ECS task role's IAM permissions cover S3 access
+  // via the SDK's default credential chain. Only local/MinIO dev sets these.
+  @IsOptional()
   @IsString()
-  S3_ACCESS_KEY_ID!: string;
+  S3_ACCESS_KEY_ID?: string;
 
+  @IsOptional()
   @IsString()
-  S3_SECRET_ACCESS_KEY!: string;
+  S3_SECRET_ACCESS_KEY?: string;
 
   @IsString()
   S3_BUCKET!: string;
