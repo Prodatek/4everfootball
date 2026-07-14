@@ -14,6 +14,8 @@ import { PlayersModule } from './modules/players/players.module';
 import { CompetitionsModule } from './modules/competitions/competitions.module';
 import { FixturesModule } from './modules/fixtures/fixtures.module';
 import { StandingsModule } from './modules/standings/standings.module';
+import { MatchesModule } from './modules/matches/matches.module';
+import { StatsModule } from './modules/stats/stats.module';
 import { HealthController } from './modules/health/health.controller';
 
 @Module({
@@ -28,6 +30,8 @@ import { HealthController } from './modules/health/health.controller';
     CompetitionsModule,
     FixturesModule,
     StandingsModule,
+    MatchesModule,
+    StatsModule,
   ],
   controllers: [HealthController],
   providers: [

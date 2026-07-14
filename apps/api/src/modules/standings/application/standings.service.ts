@@ -1,12 +1,18 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { CompetitionsService } from '../../competitions/application/competitions.service';
 import { FixturesService } from '../../fixtures/application/fixtures.service';
-import {
-  computeStandings,
-  type StandingsFixtureInput,
-} from '../domain/standings-calculator';
+import { computeStandings } from '../domain/standings-calculator';
+import { computeForm } from '../domain/form-calculator';
 
 const MAX_FIXTURES_PER_COMPETITION = 1000;
+
+interface FinishedFixtureData {
+  homeTeamId: string;
+  awayTeamId: string;
+  homeScore: number | null;
+  awayScore: number | null;
+  kickoffAt: string;
+}
 
 @Injectable()
 export class StandingsService {
@@ -16,6 +22,32 @@ export class StandingsService {
   ) {}
 
   async getTable(competitionId: string) {
+    const { entries, fixtures } =
+      await this.getFinishedCompetitionData(competitionId);
+
+    return computeStandings(
+      entries.map((entry) => ({
+        teamId: entry.teamId,
+        name: entry.name,
+        slug: entry.slug,
+        logoUrl: entry.logoUrl,
+      })),
+      fixtures,
+    );
+  }
+
+  async getForm(competitionId: string, limit?: number) {
+    const { entries, fixtures } =
+      await this.getFinishedCompetitionData(competitionId);
+
+    return computeForm(
+      entries.map((entry) => ({ teamId: entry.teamId })),
+      fixtures,
+      limit,
+    );
+  }
+
+  private async getFinishedCompetitionData(competitionId: string) {
     const competitionExists =
       await this.competitionsService.exists(competitionId);
 
@@ -34,17 +66,9 @@ export class StandingsService {
       sortOrder: 'asc',
     } as never);
 
-    const fixtures =
-      finishedFixtures.data as unknown as StandingsFixtureInput[];
-
-    return computeStandings(
-      entries.map((entry) => ({
-        teamId: entry.teamId,
-        name: entry.name,
-        slug: entry.slug,
-        logoUrl: entry.logoUrl,
-      })),
-      fixtures,
-    );
+    return {
+      entries,
+      fixtures: finishedFixtures.data as unknown as FinishedFixtureData[],
+    };
   }
 }

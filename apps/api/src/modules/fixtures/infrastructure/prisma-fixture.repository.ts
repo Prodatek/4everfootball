@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../common/prisma/prisma.service';
+import type { PrismaTransactionClient } from '../../../common/prisma/prisma-transaction.type';
 import { FixtureEntity } from '../domain/fixture.entity';
 import type {
   CreateFixtureInput,
@@ -75,9 +76,13 @@ export class PrismaFixtureRepository implements FixtureRepository {
     return new FixtureEntity(record);
   }
 
-  async update(id: string, input: UpdateFixtureInput): Promise<FixtureEntity> {
+  async update(
+    id: string,
+    input: UpdateFixtureInput,
+    tx?: PrismaTransactionClient,
+  ): Promise<FixtureEntity> {
     try {
-      const record = await this.prisma.fixture.update({
+      const record = await (tx ?? this.prisma).fixture.update({
         where: { id },
         data: input,
         include: fixtureInclude,

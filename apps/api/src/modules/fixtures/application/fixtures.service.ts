@@ -4,10 +4,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import type { FixtureStatus } from '@prisma/client';
 import {
   paginate,
   type PaginatedResult,
 } from '../../../common/dto/paginated-result';
+import type { PrismaTransactionClient } from '../../../common/prisma/prisma-transaction.type';
 import { TeamsService } from '../../teams/application/teams.service';
 import { CompetitionsService } from '../../competitions/application/competitions.service';
 import { FIXTURE_REPOSITORY } from '../domain/fixture.repository';
@@ -123,5 +125,19 @@ export class FixturesService {
     }
 
     await this.fixtureRepository.delete(id);
+  }
+
+  /**
+   * Internal write path for the match engine: recomputed score + status
+   * transitions driven by recorded match events, not admin-submitted DTOs.
+   * Accepts an optional transaction client so the caller can keep this update
+   * atomic with the match event insert/delete that triggered it.
+   */
+  async applyMatchEngineUpdate(
+    id: string,
+    data: { homeScore: number; awayScore: number; status?: FixtureStatus },
+    tx?: PrismaTransactionClient,
+  ): Promise<void> {
+    await this.fixtureRepository.update(id, data, tx);
   }
 }

@@ -1,4 +1,5 @@
 import type { FixtureStatus } from '@prisma/client';
+import type { PrismaTransactionClient } from '../../../common/prisma/prisma-transaction.type';
 import type { FixtureEntity } from './fixture.entity';
 
 export const FIXTURE_REPOSITORY = Symbol('FIXTURE_REPOSITORY');
@@ -45,6 +46,10 @@ export interface FixtureRepository {
   findMany(filters: FixtureListFilters): Promise<FixtureListResult>;
   findById(id: string): Promise<FixtureEntity | null>;
   create(input: CreateFixtureInput): Promise<FixtureEntity>;
-  update(id: string, input: UpdateFixtureInput): Promise<FixtureEntity>;
+  update(
+    id: string,
+    input: UpdateFixtureInput,
+    tx?: PrismaTransactionClient,
+  ): Promise<FixtureEntity>;
   delete(id: string): Promise<void>;
 }

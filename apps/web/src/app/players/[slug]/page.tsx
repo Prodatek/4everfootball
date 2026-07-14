@@ -7,6 +7,7 @@ import { isAxiosError } from "axios";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { fetchPlayerBySlug } from "@/features/players/api";
+import { fetchPlayerStats } from "@/features/stats/api";
 
 export default function PlayerDetailPage({
   params,
@@ -20,6 +21,12 @@ export default function PlayerDetailPage({
     queryFn: () => fetchPlayerBySlug(slug),
     retry: (failureCount, err) =>
       isAxiosError(err) && err.response?.status === 404 ? false : failureCount < 1,
+  });
+
+  const { data: stats } = useQuery({
+    queryKey: ["player-stats", slug],
+    queryFn: () => fetchPlayerStats(slug),
+    enabled: !!player,
   });
 
   if (isLoading) {
@@ -89,6 +96,36 @@ export default function PlayerDetailPage({
           </p>
         </CardContent>
       </Card>
+
+      {stats && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Career stats</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-3 gap-4 text-center sm:grid-cols-5">
+            <div>
+              <p className="text-2xl font-semibold">{stats.appearances}</p>
+              <p className="text-xs text-muted-foreground">Appearances</p>
+            </div>
+            <div>
+              <p className="text-2xl font-semibold">{stats.goals}</p>
+              <p className="text-xs text-muted-foreground">Goals</p>
+            </div>
+            <div>
+              <p className="text-2xl font-semibold">{stats.assists}</p>
+              <p className="text-xs text-muted-foreground">Assists</p>
+            </div>
+            <div>
+              <p className="text-2xl font-semibold">{stats.yellowCards}</p>
+              <p className="text-xs text-muted-foreground">Yellow cards</p>
+            </div>
+            <div>
+              <p className="text-2xl font-semibold">{stats.redCards}</p>
+              <p className="text-xs text-muted-foreground">Red cards</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

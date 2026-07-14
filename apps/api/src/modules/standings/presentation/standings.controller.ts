@@ -13,4 +13,10 @@ export class StandingsController {
   getTable(@Param('competitionId') competitionId: string) {
     return this.standingsService.getTable(competitionId);
   }
+
+  @Public()
+  @Get(':competitionId/form')
+  getForm(@Param('competitionId') competitionId: string) {
+    return this.standingsService.getForm(competitionId);
+  }
 }

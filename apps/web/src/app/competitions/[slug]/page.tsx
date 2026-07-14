@@ -19,6 +19,7 @@ import { fetchCompetitionBySlug, fetchCompetitionEntries } from "@/features/comp
 import { fetchFixtures } from "@/features/fixtures/api";
 import { FixtureRow } from "@/features/fixtures/fixture-row";
 import { fetchStandings } from "@/features/standings/api";
+import { fetchCompetitionForm, fetchTopAssists, fetchTopScorers } from "@/features/stats/api";
 
 export default function CompetitionDetailPage({
   params,
@@ -47,6 +48,24 @@ export default function CompetitionDetailPage({
   const { data: standings } = useQuery({
     queryKey: ["competition-standings", competition?.id],
     queryFn: () => fetchStandings(competition!.id),
+    enabled: !!competition?.id,
+  });
+
+  const { data: form } = useQuery({
+    queryKey: ["competition-form", competition?.id],
+    queryFn: () => fetchCompetitionForm(competition!.id),
+    enabled: !!competition?.id,
+  });
+
+  const { data: topScorers } = useQuery({
+    queryKey: ["competition-top-scorers", competition?.id],
+    queryFn: () => fetchTopScorers(competition!.id),
+    enabled: !!competition?.id,
+  });
+
+  const { data: topAssists } = useQuery({
+    queryKey: ["competition-top-assists", competition?.id],
+    queryFn: () => fetchTopAssists(competition!.id),
     enabled: !!competition?.id,
   });
 
@@ -132,35 +151,103 @@ export default function CompetitionDetailPage({
                   <TableHead className="text-right">L</TableHead>
                   <TableHead className="text-right">GD</TableHead>
                   <TableHead className="text-right">Pts</TableHead>
+                  <TableHead>Form</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {standings.map((row) => (
-                  <TableRow key={row.teamId}>
-                    <TableCell>{row.position}</TableCell>
-                    <TableCell>
-                      <Link
-                        href={`/teams/${row.teamSlug}`}
-                        className="hover:underline"
-                      >
-                        {row.teamName}
-                      </Link>
-                    </TableCell>
-                    <TableCell className="text-right">{row.played}</TableCell>
-                    <TableCell className="text-right">{row.won}</TableCell>
-                    <TableCell className="text-right">{row.drawn}</TableCell>
-                    <TableCell className="text-right">{row.lost}</TableCell>
-                    <TableCell className="text-right">{row.goalDifference}</TableCell>
-                    <TableCell className="text-right font-semibold">
-                      {row.points}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {standings.map((row) => {
+                  const teamForm = form?.find((entry) => entry.teamId === row.teamId);
+
+                  return (
+                    <TableRow key={row.teamId}>
+                      <TableCell>{row.position}</TableCell>
+                      <TableCell>
+                        <Link
+                          href={`/teams/${row.teamSlug}`}
+                          className="hover:underline"
+                        >
+                          {row.teamName}
+                        </Link>
+                      </TableCell>
+                      <TableCell className="text-right">{row.played}</TableCell>
+                      <TableCell className="text-right">{row.won}</TableCell>
+                      <TableCell className="text-right">{row.drawn}</TableCell>
+                      <TableCell className="text-right">{row.lost}</TableCell>
+                      <TableCell className="text-right">{row.goalDifference}</TableCell>
+                      <TableCell className="text-right font-semibold">
+                        {row.points}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-1">
+                          {teamForm?.results.map((result, index) => (
+                            <Badge
+                              key={index}
+                              variant={
+                                result === "W"
+                                  ? "default"
+                                  : result === "L"
+                                    ? "destructive"
+                                    : "secondary"
+                              }
+                              className="size-5 justify-center p-0 text-[10px]"
+                            >
+                              {result}
+                            </Badge>
+                          ))}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
         </CardContent>
       </Card>
+
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Top scorers</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-1">
+            {topScorers && topScorers.length === 0 && (
+              <p className="text-sm text-muted-foreground">No goals recorded yet.</p>
+            )}
+            {topScorers?.map((row) => (
+              <Link
+                key={row.playerId}
+                href={`/players/${row.playerSlug}`}
+                className="flex items-center justify-between rounded-md px-2 py-1 text-sm hover:bg-muted"
+              >
+                <span>{row.playerName}</span>
+                <span className="font-semibold">{row.count}</span>
+              </Link>
+            ))}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Top assists</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-1">
+            {topAssists && topAssists.length === 0 && (
+              <p className="text-sm text-muted-foreground">No assists recorded yet.</p>
+            )}
+            {topAssists?.map((row) => (
+              <Link
+                key={row.playerId}
+                href={`/players/${row.playerSlug}`}
+                className="flex items-center justify-between rounded-md px-2 py-1 text-sm hover:bg-muted"
+              >
+                <span>{row.playerName}</span>
+                <span className="font-semibold">{row.count}</span>
+              </Link>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
 
       <Card>
         <CardHeader>

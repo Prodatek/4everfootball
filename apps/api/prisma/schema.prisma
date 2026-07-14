@@ -26,6 +26,7 @@ model User {
   updatedAt    DateTime @updatedAt
 
   refreshTokens RefreshToken[]
+  recordedMatchEvents MatchEvent[]
 
   @@map("users")
 }
@@ -62,6 +63,7 @@ model Team {
   competitionEntries CompetitionEntry[]
   homeFixtures Fixture[] @relation("HomeFixtures")
   awayFixtures Fixture[] @relation("AwayFixtures")
+  matchEvents  MatchEvent[]
 
   @@index([country])
   @@map("teams")
@@ -98,6 +100,9 @@ model Player {
 
   teamId String?
   team   Team?   @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
+  matchEventsAsPlayer MatchEvent[] @relation("MatchEventPlayer")
+  matchEventsAsAssist MatchEvent[] @relation("MatchEventAssist")
 
   @@index([teamId])
   @@index([nationality])
@@ -170,9 +175,59 @@ model Fixture {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
+  matchEvents MatchEvent[]
+
   @@index([competitionId])
   @@index([homeTeamId])
   @@index([awayTeamId])
   @@index([kickoffAt])
   @@map("fixtures")
+}
+
+enum MatchEventType {
+  KICKOFF
+  GOAL
+  SHOT
+  SHOT_ON_TARGET
+  SHOT_OFF_TARGET
+  SAVE
+  CORNER
+  FREE_KICK
+  THROW_IN
+  PENALTY_AWARDED
+  PENALTY_SCORED
+  PENALTY_MISSED
+  YELLOW_CARD
+  RED_CARD
+  SUBSTITUTION
+  INJURY
+  VAR_DECISION
+  OFFSIDE
+  HALF_TIME
+  FULL_TIME
+}
+
+model MatchEvent {
+  id             String         @id @default(uuid())
+  sequence       Int            @unique @default(autoincrement())
+  fixtureId      String
+  fixture        Fixture        @relation(fields: [fixtureId], references: [id], onDelete: Cascade)
+  type           MatchEventType
+  minute         Int
+  stoppageMinute Int?
+  teamId         String?
+  team           Team?          @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  playerId       String?
+  player         Player?        @relation("MatchEventPlayer", fields: [playerId], references: [id], onDelete: SetNull)
+  assistPlayerId String?
+  assistPlayer   Player?        @relation("MatchEventAssist", fields: [assistPlayerId], references: [id], onDelete: SetNull)
+  metadata       Json?
+  clientEventId  String
+  recordedById   String?
+  recordedBy     User?          @relation(fields: [recordedById], references: [id], onDelete: SetNull)
+  createdAt      DateTime       @default(now())
+
+  @@unique([fixtureId, clientEventId])
+  @@index([fixtureId])
+  @@map("match_events")
 }

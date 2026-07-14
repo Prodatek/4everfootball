@@ -58,6 +58,11 @@ export class PlayersService {
     );
   }
 
+  async findById(id: string) {
+    const player = await this.playerRepository.findById(id);
+    return player ? player.toPublic() : null;
+  }
+
   async getBySlug(slug: string) {
     const player = await this.playerRepository.findBySlug(slug);
 
