@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import type { Team } from "@4ef/shared";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ImageUploadField } from "@/features/media/image-upload-field";
 import { teamFormSchema, type TeamFormValues } from "./schemas";
 import type { TeamInput } from "./api";
 
@@ -47,6 +48,7 @@ export function TeamFormDialog({
     register,
     handleSubmit,
     reset,
+    control,
     formState: { errors },
   } = useForm<TeamFormValues>({
     resolver: zodResolver(teamFormSchema),
@@ -109,13 +111,20 @@ export function TeamFormDialog({
             <Label htmlFor="venueName">Venue</Label>
             <Input id="venueName" {...register("venueName")} />
           </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="logoUrl">Logo URL</Label>
-            <Input id="logoUrl" {...register("logoUrl")} />
-            {errors.logoUrl && (
-              <p className="text-sm text-destructive">{errors.logoUrl.message}</p>
+          <Controller
+            control={control}
+            name="logoUrl"
+            render={({ field }) => (
+              <ImageUploadField
+                label="Logo"
+                value={field.value || undefined}
+                onChange={(url) => field.onChange(url ?? "")}
+              />
             )}
-          </div>
+          />
+          {errors.logoUrl && (
+            <p className="text-sm text-destructive">{errors.logoUrl.message}</p>
+          )}
           <DialogFooter>
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting ? "Saving..." : "Save"}

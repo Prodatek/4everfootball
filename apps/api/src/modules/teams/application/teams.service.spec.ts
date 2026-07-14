@@ -3,6 +3,7 @@ import { NotFoundException } from '@nestjs/common';
 import { TeamsService } from './teams.service';
 import { TEAM_REPOSITORY } from '../domain/team.repository';
 import type { TeamRepository } from '../domain/team.repository';
+import { SearchService } from '../../search/application/search.service';
 
 describe('TeamsService', () => {
   let service: TeamsService;
@@ -23,6 +24,10 @@ describe('TeamsService', () => {
             update: jest.fn(),
             delete: jest.fn(),
           },
+        },
+        {
+          provide: SearchService,
+          useValue: { indexTeam: jest.fn(), deleteTeam: jest.fn() },
         },
       ],
     }).compile();

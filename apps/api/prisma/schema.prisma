@@ -27,6 +27,8 @@ model User {
 
   refreshTokens RefreshToken[]
   recordedMatchEvents MatchEvent[]
+  newsArticles NewsArticle[]
+  uploadedMedia Media[]
 
   @@map("users")
 }
@@ -230,4 +232,51 @@ model MatchEvent {
   @@unique([fixtureId, clientEventId])
   @@index([fixtureId])
   @@map("match_events")
+}
+
+enum NewsStatus {
+  DRAFT
+  PUBLISHED
+}
+
+model NewsArticle {
+  id            String     @id @default(uuid())
+  title         String
+  slug          String     @unique
+  excerpt       String?
+  body          String
+  coverImageUrl String?
+  status        NewsStatus @default(DRAFT)
+  tags          String[]   @default([])
+  authorId      String?
+  author        User?      @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  publishedAt   DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@index([status])
+  @@index([publishedAt])
+  @@map("news_articles")
+}
+
+enum MediaKind {
+  IMAGE
+  VIDEO
+  DOCUMENT
+}
+
+model Media {
+  id           String    @id @default(uuid())
+  key          String    @unique
+  url          String
+  filename     String
+  mimeType     String
+  sizeBytes    Int
+  kind         MediaKind
+  uploadedById String?
+  uploadedBy   User?     @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime  @default(now())
+
+  @@index([kind])
+  @@map("media")
 }

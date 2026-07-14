@@ -8,7 +8,7 @@ Monorepo (pnpm workspaces): `apps/api` (NestJS + Prisma + PostgreSQL), `apps/web
 pnpm install
 cp apps/api/.env.example apps/api/.env    # fill in JWT secrets
 cp apps/web/.env.example apps/web/.env.local
-docker compose up -d                      # postgres, redis, meilisearch
+docker compose up -d                      # postgres, redis, meilisearch, minio
 pnpm --filter @4ef/api exec prisma migrate dev
 ```
 
@@ -29,5 +29,9 @@ pnpm dev:web    # http://localhost:3000
 - League Tables (standings computed on the fly from FINISHED fixtures — no persisted table, just an aggregation over Competitions + Fixtures — shown on the competition detail page).
 - Live Match Engine + Scout Live Engine: event-sourced `MatchEvent` log (goal, cards, subs, VAR, etc. — 19 types) is the sole source of truth; `Fixture.homeScore/awayScore` and `status` (LIVE/FINISHED) are recomputed transactionally from the event log on every write, never hand-edited. Real-time delivery via a push-only Socket.IO channel (`/live`, room-per-fixture). Scout recording UI (`/scout/fixtures/:id`, role-gated) records offline-tolerant via a localStorage-backed retry queue keyed by a client-generated idempotency UUID, so a dropped connection never loses or duplicates a tap. Public fixture pages update live without a refresh.
 - Match Statistics: top scorers/assists per competition and career player stats (goals/assists/cards/appearances), all computed on read from the event log (same no-persisted-counters pattern as League Tables). Team form (`W`/`D`/`L`) shown as a column on the standings table.
+- News (draft/published articles with tags and an optional cover image URL, author attribution, public listing/detail, admin management UI gated to EDITOR/ADMIN/SUPER_ADMIN).
+- Admin Dashboard: a unified `/admin` shell with a role-filtered sidebar (previously the admin pages were only reachable one-by-one via a header dropdown). Dashboard home shows platform-wide stat totals plus live/upcoming fixtures. Also added: admin user management (`/admin/users`) — list users, edit roles/active status, with a privilege-escalation guard (only a super admin can grant/revoke the super admin role; nobody can edit their own roles) — this closes a real gap, since until now there was no way for anyone to actually assign the SCOUT/EDITOR/ADMIN roles that the RBAC system and every role-gated feature so far have depended on. Also added a Live Scouting hub (`/admin/scouting`) surfacing live/upcoming fixtures for scouts.
+- Media: S3-compatible file library (MinIO locally; swapping to real S3/R2/Spaces in production is an env-var change, no code change) via presigned-URL uploads — the browser uploads bytes directly to storage, never through our API. A reusable upload component is wired into the Team and News forms (replacing plain "paste a URL" fields), plus a standalone media library at `/admin/media`.
+- Search: Meilisearch indexes Teams, Players, Competitions, and published News. Each of those services pushes index updates on create/update/delete (deactivated/unpublished/deleted records are removed from the index); a Meilisearch outage is logged and swallowed, never fails the underlying write. A search bar in the header and a `/search` results page query all four indexes in parallel; `/admin` has a "Reindex search" action to rebuild the indexes from Postgres.
 
-Everything else in the MVP scope (News, Media, Search, Public Website, Admin Dashboard) is not yet implemented.
+Everything else in the MVP scope (Public Website) is not yet implemented — everything else is really about polish/assembly of what already exists rather than a new module.

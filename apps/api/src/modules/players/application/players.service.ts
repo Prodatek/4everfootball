@@ -10,6 +10,7 @@ import {
 } from '../../../common/dto/paginated-result';
 import { slugify } from '../../../common/utils/slugify';
 import { TeamsService } from '../../teams/application/teams.service';
+import { SearchService } from '../../search/application/search.service';
 import { PLAYER_REPOSITORY } from '../domain/player.repository';
 import type { PlayerRepository } from '../domain/player.repository';
 import type { CreatePlayerDto } from './dto/create-player.dto';
@@ -22,6 +23,7 @@ export class PlayersService {
     @Inject(PLAYER_REPOSITORY)
     private readonly playerRepository: PlayerRepository,
     private readonly teamsService: TeamsService,
+    private readonly searchService: SearchService,
   ) {}
 
   async list(query: QueryPlayersDto): Promise<PaginatedResult<unknown>> {
@@ -84,8 +86,18 @@ export class PlayersService {
       slug,
       dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : undefined,
     });
+    const publicPlayer = player.toPublic();
 
-    return player.toPublic();
+    void this.searchService.indexPlayer({
+      id: publicPlayer.id,
+      firstName: publicPlayer.firstName,
+      lastName: publicPlayer.lastName,
+      slug: publicPlayer.slug,
+      position: publicPlayer.position,
+      teamName: publicPlayer.team?.name ?? null,
+    });
+
+    return publicPlayer;
   }
 
   async update(id: string, dto: UpdatePlayerDto) {
@@ -103,8 +115,22 @@ export class PlayersService {
       ...dto,
       dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : undefined,
     });
+    const publicPlayer = player.toPublic();
 
-    return player.toPublic();
+    if (publicPlayer.isActive) {
+      void this.searchService.indexPlayer({
+        id: publicPlayer.id,
+        firstName: publicPlayer.firstName,
+        lastName: publicPlayer.lastName,
+        slug: publicPlayer.slug,
+        position: publicPlayer.position,
+        teamName: publicPlayer.team?.name ?? null,
+      });
+    } else {
+      void this.searchService.deletePlayer(publicPlayer.id);
+    }
+
+    return publicPlayer;
   }
 
   async remove(id: string) {
@@ -115,6 +141,7 @@ export class PlayersService {
     }
 
     await this.playerRepository.delete(id);
+    void this.searchService.deletePlayer(id);
   }
 
   private async assertTeamExists(teamId: string) {

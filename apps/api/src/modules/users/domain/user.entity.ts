@@ -47,4 +47,15 @@ export class UserEntity {
       createdAt: this.props.createdAt,
     };
   }
+
+  toAdminSummary() {
+    return {
+      id: this.props.id,
+      email: this.props.email,
+      displayName: this.props.displayName,
+      roles: this.props.roles,
+      isActive: this.props.isActive,
+      createdAt: this.props.createdAt,
+    };
+  }
 }

@@ -4,6 +4,7 @@ import { CompetitionsService } from './competitions.service';
 import { COMPETITION_REPOSITORY } from '../domain/competition.repository';
 import type { CompetitionRepository } from '../domain/competition.repository';
 import { TeamsService } from '../../teams/application/teams.service';
+import { SearchService } from '../../search/application/search.service';
 
 describe('CompetitionsService', () => {
   let service: CompetitionsService;
@@ -31,6 +32,13 @@ describe('CompetitionsService', () => {
           },
         },
         { provide: TeamsService, useValue: { exists: jest.fn() } },
+        {
+          provide: SearchService,
+          useValue: {
+            indexCompetition: jest.fn(),
+            deleteCompetition: jest.fn(),
+          },
+        },
       ],
     }).compile();
 

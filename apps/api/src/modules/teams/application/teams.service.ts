@@ -9,6 +9,7 @@ import {
   type PaginatedResult,
 } from '../../../common/dto/paginated-result';
 import { slugify } from '../../../common/utils/slugify';
+import { SearchService } from '../../search/application/search.service';
 import { TEAM_REPOSITORY } from '../domain/team.repository';
 import type { TeamRepository } from '../domain/team.repository';
 import type { CreateTeamDto } from './dto/create-team.dto';
@@ -19,6 +20,7 @@ import type { UpdateTeamDto } from './dto/update-team.dto';
 export class TeamsService {
   constructor(
     @Inject(TEAM_REPOSITORY) private readonly teamRepository: TeamRepository,
+    private readonly searchService: SearchService,
   ) {}
 
   async list(query: QueryTeamsDto): Promise<PaginatedResult<unknown>> {
@@ -66,7 +68,17 @@ export class TeamsService {
   async create(dto: CreateTeamDto) {
     const slug = await this.generateUniqueSlug(dto.name);
     const team = await this.teamRepository.create({ ...dto, slug });
-    return team.toPublic();
+    const publicTeam = team.toPublic();
+
+    void this.searchService.indexTeam({
+      id: publicTeam.id,
+      name: publicTeam.name,
+      slug: publicTeam.slug,
+      country: publicTeam.country,
+      logoUrl: publicTeam.logoUrl,
+    });
+
+    return publicTeam;
   }
 
   async update(id: string, dto: UpdateTeamDto) {
@@ -77,7 +89,21 @@ export class TeamsService {
     }
 
     const team = await this.teamRepository.update(id, dto);
-    return team.toPublic();
+    const publicTeam = team.toPublic();
+
+    if (publicTeam.isActive) {
+      void this.searchService.indexTeam({
+        id: publicTeam.id,
+        name: publicTeam.name,
+        slug: publicTeam.slug,
+        country: publicTeam.country,
+        logoUrl: publicTeam.logoUrl,
+      });
+    } else {
+      void this.searchService.deleteTeam(publicTeam.id);
+    }
+
+    return publicTeam;
   }
 
   async remove(id: string) {
@@ -88,6 +114,7 @@ export class TeamsService {
     }
 
     await this.teamRepository.delete(id);
+    void this.searchService.deleteTeam(id);
   }
 
   private async generateUniqueSlug(name: string): Promise<string> {

@@ -33,6 +33,30 @@ class EnvironmentVariables {
 
   @IsString()
   WEB_APP_URL!: string;
+
+  @IsString()
+  S3_ENDPOINT!: string;
+
+  @IsString()
+  S3_REGION!: string;
+
+  @IsString()
+  S3_ACCESS_KEY_ID!: string;
+
+  @IsString()
+  S3_SECRET_ACCESS_KEY!: string;
+
+  @IsString()
+  S3_BUCKET!: string;
+
+  @IsString()
+  S3_PUBLIC_URL!: string;
+
+  @IsString()
+  MEILISEARCH_HOST!: string;
+
+  @IsString()
+  MEILISEARCH_API_KEY!: string;
 }
 
 export function validateEnv(config: Record<string, unknown>) {

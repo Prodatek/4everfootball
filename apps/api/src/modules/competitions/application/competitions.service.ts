@@ -10,6 +10,7 @@ import {
 } from '../../../common/dto/paginated-result';
 import { slugify } from '../../../common/utils/slugify';
 import { TeamsService } from '../../teams/application/teams.service';
+import { SearchService } from '../../search/application/search.service';
 import { COMPETITION_REPOSITORY } from '../domain/competition.repository';
 import type { CompetitionRepository } from '../domain/competition.repository';
 import type { CreateCompetitionDto } from './dto/create-competition.dto';
@@ -22,6 +23,7 @@ export class CompetitionsService {
     @Inject(COMPETITION_REPOSITORY)
     private readonly competitionRepository: CompetitionRepository,
     private readonly teamsService: TeamsService,
+    private readonly searchService: SearchService,
   ) {}
 
   async list(query: QueryCompetitionsDto): Promise<PaginatedResult<unknown>> {
@@ -76,8 +78,17 @@ export class CompetitionsService {
       startDate: dto.startDate ? new Date(dto.startDate) : undefined,
       endDate: dto.endDate ? new Date(dto.endDate) : undefined,
     });
+    const publicCompetition = competition.toPublic();
 
-    return competition.toPublic();
+    void this.searchService.indexCompetition({
+      id: publicCompetition.id,
+      name: publicCompetition.name,
+      slug: publicCompetition.slug,
+      season: publicCompetition.season,
+      country: publicCompetition.country,
+    });
+
+    return publicCompetition;
   }
 
   async update(id: string, dto: UpdateCompetitionDto) {
@@ -92,8 +103,21 @@ export class CompetitionsService {
       startDate: dto.startDate ? new Date(dto.startDate) : undefined,
       endDate: dto.endDate ? new Date(dto.endDate) : undefined,
     });
+    const publicCompetition = competition.toPublic();
 
-    return competition.toPublic();
+    if (publicCompetition.isActive) {
+      void this.searchService.indexCompetition({
+        id: publicCompetition.id,
+        name: publicCompetition.name,
+        slug: publicCompetition.slug,
+        season: publicCompetition.season,
+        country: publicCompetition.country,
+      });
+    } else {
+      void this.searchService.deleteCompetition(publicCompetition.id);
+    }
+
+    return publicCompetition;
   }
 
   async remove(id: string) {
@@ -104,6 +128,7 @@ export class CompetitionsService {
     }
 
     await this.competitionRepository.delete(id);
+    void this.searchService.deleteCompetition(id);
   }
 
   async exists(id: string): Promise<boolean> {

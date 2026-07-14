@@ -4,6 +4,7 @@ import { PlayersService } from './players.service';
 import { PLAYER_REPOSITORY } from '../domain/player.repository';
 import type { PlayerRepository } from '../domain/player.repository';
 import { TeamsService } from '../../teams/application/teams.service';
+import { SearchService } from '../../search/application/search.service';
 
 describe('PlayersService', () => {
   let service: PlayersService;
@@ -29,6 +30,10 @@ describe('PlayersService', () => {
         {
           provide: TeamsService,
           useValue: { exists: jest.fn() },
+        },
+        {
+          provide: SearchService,
+          useValue: { indexPlayer: jest.fn(), deletePlayer: jest.fn() },
         },
       ],
     }).compile();

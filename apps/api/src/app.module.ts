@@ -16,6 +16,11 @@ import { FixturesModule } from './modules/fixtures/fixtures.module';
 import { StandingsModule } from './modules/standings/standings.module';
 import { MatchesModule } from './modules/matches/matches.module';
 import { StatsModule } from './modules/stats/stats.module';
+import { NewsModule } from './modules/news/news.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { MediaModule } from './modules/media/media.module';
+import { SearchModule } from './modules/search/search.module';
+import { SearchAdminModule } from './modules/search/search-admin.module';
 import { HealthController } from './modules/health/health.controller';
 
 @Module({
@@ -32,6 +37,11 @@ import { HealthController } from './modules/health/health.controller';
     StandingsModule,
     MatchesModule,
     StatsModule,
+    NewsModule,
+    DashboardModule,
+    MediaModule,
+    SearchModule,
+    SearchAdminModule,
   ],
   controllers: [HealthController],
   providers: [

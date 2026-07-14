@@ -8,3 +8,8 @@ export * from "./fixture";
 export * from "./standings";
 export * from "./match-event";
 export * from "./stats";
+export * from "./news";
+export * from "./admin-user";
+export * from "./dashboard";
+export * from "./media";
+export * from "./search";
