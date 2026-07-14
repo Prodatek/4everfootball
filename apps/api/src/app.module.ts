@@ -13,6 +13,7 @@ import { TeamsModule } from './modules/teams/teams.module';
 import { PlayersModule } from './modules/players/players.module';
 import { CompetitionsModule } from './modules/competitions/competitions.module';
 import { FixturesModule } from './modules/fixtures/fixtures.module';
+import { StandingsModule } from './modules/standings/standings.module';
 import { HealthController } from './modules/health/health.controller';
 
 @Module({
@@ -26,6 +27,7 @@ import { HealthController } from './modules/health/health.controller';
     PlayersModule,
     CompetitionsModule,
     FixturesModule,
+    StandingsModule,
   ],
   controllers: [HealthController],
   providers: [

@@ -104,7 +104,8 @@ export function computeStandings(
 
   rows.sort((a, b) => {
     if (b.points !== a.points) return b.points - a.points;
-    if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
+    if (b.goalDifference !== a.goalDifference)
+      return b.goalDifference - a.goalDifference;
     if (b.goalsFor !== a.goalsFor) return b.goalsFor - a.goalsFor;
     return a.teamName.localeCompare(b.teamName);
   });

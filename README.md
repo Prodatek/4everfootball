@@ -26,5 +26,6 @@ pnpm dev:web    # http://localhost:3000
 - Players (CRUD, team assignment, public listing/detail with search + position filter, squad shown on team detail, admin management UI).
 - Competitions (CRUD, team entries via a competition_entries join table, public listing/detail showing entered teams, admin management UI with an add/remove-teams dialog).
 - Fixtures (CRUD scheduling matches between two teams entered in a competition, status lifecycle + scores, public listing/detail, fixtures shown on team and competition detail pages, admin management UI).
+- League Tables (standings computed on the fly from FINISHED fixtures — no persisted table, just an aggregation over Competitions + Fixtures — shown on the competition detail page).
 
-Everything else in the MVP scope (Live Match Engine, Scout Live Engine, League Tables, Match Statistics, News, Media, Search, Public Website, Admin Dashboard) is not yet implemented.
+Everything else in the MVP scope (Live Match Engine, Scout Live Engine, Match Statistics, News, Media, Search, Public Website, Admin Dashboard) is not yet implemented.

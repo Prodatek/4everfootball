@@ -7,9 +7,18 @@ import { isAxiosError } from "axios";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { fetchCompetitionBySlug, fetchCompetitionEntries } from "@/features/competitions/api";
 import { fetchFixtures } from "@/features/fixtures/api";
 import { FixtureRow } from "@/features/fixtures/fixture-row";
+import { fetchStandings } from "@/features/standings/api";
 
 export default function CompetitionDetailPage({
   params,
@@ -32,6 +41,12 @@ export default function CompetitionDetailPage({
   const { data: entries } = useQuery({
     queryKey: ["competition-teams", competition?.id],
     queryFn: () => fetchCompetitionEntries(competition!.id),
+    enabled: !!competition?.id,
+  });
+
+  const { data: standings } = useQuery({
+    queryKey: ["competition-standings", competition?.id],
+    queryFn: () => fetchStandings(competition!.id),
     enabled: !!competition?.id,
   });
 
@@ -94,6 +109,56 @@ export default function CompetitionDetailPage({
             <span className="text-muted-foreground">Ends:</span>{" "}
             {competition.endDate ? competition.endDate.slice(0, 10) : "TBD"}
           </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Standings</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {standings && standings.length === 0 && (
+            <p className="text-sm text-muted-foreground">No teams entered yet.</p>
+          )}
+          {standings && standings.length > 0 && (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>#</TableHead>
+                  <TableHead>Team</TableHead>
+                  <TableHead className="text-right">P</TableHead>
+                  <TableHead className="text-right">W</TableHead>
+                  <TableHead className="text-right">D</TableHead>
+                  <TableHead className="text-right">L</TableHead>
+                  <TableHead className="text-right">GD</TableHead>
+                  <TableHead className="text-right">Pts</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {standings.map((row) => (
+                  <TableRow key={row.teamId}>
+                    <TableCell>{row.position}</TableCell>
+                    <TableCell>
+                      <Link
+                        href={`/teams/${row.teamSlug}`}
+                        className="hover:underline"
+                      >
+                        {row.teamName}
+                      </Link>
+                    </TableCell>
+                    <TableCell className="text-right">{row.played}</TableCell>
+                    <TableCell className="text-right">{row.won}</TableCell>
+                    <TableCell className="text-right">{row.drawn}</TableCell>
+                    <TableCell className="text-right">{row.lost}</TableCell>
+                    <TableCell className="text-right">{row.goalDifference}</TableCell>
+                    <TableCell className="text-right font-semibold">
+                      {row.points}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 
