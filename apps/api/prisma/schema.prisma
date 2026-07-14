@@ -1,0 +1,178 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  SCOUT
+  EDITOR
+  USER
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  displayName  String
+  roles        Role[]   @default([USER])
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  refreshTokens RefreshToken[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id            String    @id @default(uuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash     String    @unique
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  replacedById  String?
+  createdAt     DateTime  @default(now())
+  createdByIp   String?
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model Team {
+  id          String   @id @default(uuid())
+  name        String
+  shortName   String?
+  slug        String   @unique
+  country     String?
+  foundedYear Int?
+  logoUrl     String?
+  venueName   String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  players Player[]
+  competitionEntries CompetitionEntry[]
+  homeFixtures Fixture[] @relation("HomeFixtures")
+  awayFixtures Fixture[] @relation("AwayFixtures")
+
+  @@index([country])
+  @@map("teams")
+}
+
+enum PlayerPosition {
+  GOALKEEPER
+  DEFENDER
+  MIDFIELDER
+  FORWARD
+}
+
+enum PreferredFoot {
+  LEFT
+  RIGHT
+  BOTH
+}
+
+model Player {
+  id             String          @id @default(uuid())
+  firstName      String
+  lastName       String
+  slug           String          @unique
+  dateOfBirth    DateTime?
+  nationality    String?
+  position       PlayerPosition?
+  shirtNumber    Int?
+  heightCm       Int?
+  preferredFoot  PreferredFoot?
+  photoUrl       String?
+  isActive       Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  teamId String?
+  team   Team?   @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
+  @@index([teamId])
+  @@index([nationality])
+  @@map("players")
+}
+
+enum CompetitionType {
+  LEAGUE
+  CUP
+  TOURNAMENT
+}
+
+model Competition {
+  id        String          @id @default(uuid())
+  name      String
+  slug      String          @unique
+  type      CompetitionType @default(LEAGUE)
+  country   String?
+  season    String
+  startDate DateTime?
+  endDate   DateTime?
+  logoUrl   String?
+  isActive  Boolean         @default(true)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  entries  CompetitionEntry[]
+  fixtures Fixture[]
+
+  @@index([country])
+  @@index([season])
+  @@map("competitions")
+}
+
+model CompetitionEntry {
+  id            String      @id @default(uuid())
+  competitionId String
+  competition   Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  teamId        String
+  team          Team        @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  joinedAt      DateTime    @default(now())
+
+  @@unique([competitionId, teamId])
+  @@index([teamId])
+  @@map("competition_entries")
+}
+
+enum FixtureStatus {
+  SCHEDULED
+  LIVE
+  FINISHED
+  POSTPONED
+  CANCELLED
+}
+
+model Fixture {
+  id            String        @id @default(uuid())
+  competitionId String
+  competition   Competition   @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  homeTeamId    String
+  homeTeam      Team          @relation("HomeFixtures", fields: [homeTeamId], references: [id], onDelete: Cascade)
+  awayTeamId    String
+  awayTeam      Team          @relation("AwayFixtures", fields: [awayTeamId], references: [id], onDelete: Cascade)
+  kickoffAt     DateTime
+  venueName     String?
+  matchday      String?
+  status        FixtureStatus @default(SCHEDULED)
+  homeScore     Int?
+  awayScore     Int?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([competitionId])
+  @@index([homeTeamId])
+  @@index([awayTeamId])
+  @@index([kickoffAt])
+  @@map("fixtures")
+}

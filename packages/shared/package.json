@@ -1,0 +1,14 @@
+{
+  "name": "@4ef/shared",
+  "private": true,
+  "version": "0.0.0",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@4ef/tsconfig": "workspace:*",
+    "typescript": "^5.5.4"
+  }
+}
