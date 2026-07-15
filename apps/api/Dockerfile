@@ -7,7 +7,7 @@
 #    devDependencies via `pnpm deploy --prod` and therefore has no `prisma` CLI to run
 #    migrations with. docker-compose's `api-migrate` service targets `build` instead.
 
-FROM node:20-alpine AS base
+FROM node:22 AS base
 RUN corepack enable
 WORKDIR /repo
 
@@ -25,7 +25,7 @@ RUN pnpm --filter @4ef/api exec prisma generate
 RUN pnpm --filter @4ef/api build
 RUN pnpm --filter @4ef/api deploy --prod --legacy /prod/api
 
-FROM node:20-alpine AS runtime
+FROM node:22 AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=build /prod/api ./

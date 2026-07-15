@@ -8,7 +8,7 @@
 # NEXT_PUBLIC_* vars are inlined into the client bundle at build time, so the
 # API URL has to be supplied as a build ARG, not just a runtime env var.
 
-FROM node:20-alpine AS base
+FROM node:22 AS base
 RUN corepack enable
 WORKDIR /repo
 
@@ -26,7 +26,7 @@ ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 COPY . .
 RUN pnpm --filter @4ef/web build
 
-FROM node:20-alpine AS runtime
+FROM node:22 AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=build /repo/apps/web/.next/standalone ./
