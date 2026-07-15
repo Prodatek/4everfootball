@@ -11,7 +11,7 @@ import { useAuth } from "@/features/auth/auth-context";
 import { fetchFixtureById } from "@/features/fixtures/api";
 import { fetchPlayers } from "@/features/players/api";
 import { useLiveMatch } from "@/features/matches/use-live-match";
-import { useOfflineEventQueue } from "@/features/matches/offline-queue";
+import { STUCK_AFTER_ATTEMPTS, useOfflineEventQueue } from "@/features/matches/offline-queue";
 import { MatchTimeline } from "@/features/matches/match-timeline";
 import { MATCH_EVENT_LABELS } from "@/features/matches/event-labels";
 import { RecordEventDialog } from "@/features/matches/record-event-dialog";
@@ -139,7 +139,11 @@ export default function ScoutFixturePage({
                 >
                   <span className="font-mono">{item.minute}&apos;</span>
                   <span>{MATCH_EVENT_LABELS[item.type]}</span>
-                  <span className="italic">syncing...</span>
+                  {item.attempts >= STUCK_AFTER_ATTEMPTS && item.lastError ? (
+                    <span className="italic text-destructive">{item.lastError}</span>
+                  ) : (
+                    <span className="italic">syncing...</span>
+                  )}
                 </li>
               ))}
             </ul>
