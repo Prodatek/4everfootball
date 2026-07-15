@@ -48,6 +48,7 @@ export function useLiveMatch(fixtureId: string) {
       socket.off("match-event", onEvent);
       socket.off("match-event-removed", onEventRemoved);
       socket.off("match-state", onState);
+      socket.emit("leave-fixture", fixtureId);
     };
   }, [fixtureId]);
 

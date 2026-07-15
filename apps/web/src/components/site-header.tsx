@@ -48,6 +48,9 @@ export function SiteHeader() {
       </form>
 
       <nav className="flex items-center gap-4 text-sm">
+        <Link href="/live" className="text-muted-foreground hover:text-foreground">
+          Live
+        </Link>
         <Link href="/teams" className="text-muted-foreground hover:text-foreground">
           Teams
         </Link>

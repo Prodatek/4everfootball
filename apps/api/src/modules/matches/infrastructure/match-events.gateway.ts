@@ -30,6 +30,14 @@ export class MatchEventsGateway {
     client.join(fixtureRoom(fixtureId));
   }
 
+  @SubscribeMessage('leave-fixture')
+  handleLeaveFixture(
+    @MessageBody() fixtureId: string,
+    @ConnectedSocket() client: Socket,
+  ) {
+    client.leave(fixtureRoom(fixtureId));
+  }
+
   broadcastEvent(fixtureId: string, event: unknown) {
     this.server?.to(fixtureRoom(fixtureId)).emit('match-event', event);
   }
