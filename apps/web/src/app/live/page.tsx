@@ -6,6 +6,9 @@ import { FixtureRow } from "@/features/fixtures/fixture-row";
 import { LiveScoreCard } from "@/features/fixtures/live-score-card";
 
 const LIST_REFETCH_MS = 30_000;
+// How far back "just concluded" looks — long enough to cover a full match
+// plus stoppage time, short enough to stay "recent" rather than a results archive.
+const CONCLUDED_WINDOW_HOURS = 3;
 
 export default function LivePage() {
   const { data: liveData, isLoading: isLiveLoading } = useQuery({
@@ -17,6 +20,23 @@ export default function LivePage() {
         sortOrder: "asc",
         limit: 50,
       }),
+    refetchInterval: LIST_REFETCH_MS,
+  });
+
+  const { data: concludedData, isLoading: isConcludedLoading } = useQuery({
+    queryKey: ["concluded-fixtures"],
+    queryFn: () => {
+      const now = new Date();
+      const since = new Date(now.getTime() - CONCLUDED_WINDOW_HOURS * 60 * 60 * 1000);
+      return fetchFixtures({
+        status: "FINISHED",
+        fromDate: since.toISOString(),
+        toDate: now.toISOString(),
+        sortBy: "kickoffAt",
+        sortOrder: "desc",
+        limit: 50,
+      });
+    },
     refetchInterval: LIST_REFETCH_MS,
   });
 
@@ -50,6 +70,21 @@ export default function LivePage() {
         <div className="flex flex-col gap-2">
           {liveData?.data.map((fixture) => (
             <LiveScoreCard key={fixture.id} fixture={fixture} />
+          ))}
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-lg font-semibold">Just concluded</h2>
+        {isConcludedLoading && (
+          <p className="text-sm text-muted-foreground">Loading...</p>
+        )}
+        {concludedData && concludedData.data.length === 0 && (
+          <p className="text-sm text-muted-foreground">No matches finished recently.</p>
+        )}
+        <div className="flex flex-col gap-2">
+          {concludedData?.data.map((fixture) => (
+            <FixtureRow key={fixture.id} fixture={fixture} />
           ))}
         </div>
       </section>

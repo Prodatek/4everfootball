@@ -44,6 +44,7 @@ export function CreateFixtureDialog({
     reset,
     control,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<CreateFixtureFormValues>({
     resolver: zodResolver(createFixtureSchema),
@@ -108,7 +109,17 @@ export function CreateFixtureDialog({
               control={control}
               name="competitionId"
               render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
+                <Select
+                  value={field.value}
+                  onValueChange={(value) => {
+                    field.onChange(value);
+                    // Home/away team options are scoped to this competition's
+                    // entries — a team chosen under the previous competition
+                    // is no longer a valid option, so it can't stay selected.
+                    setValue("homeTeamId", "");
+                    setValue("awayTeamId", "");
+                  }}
+                >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select competition" />
                   </SelectTrigger>
