@@ -1,6 +1,16 @@
 packages:
   - "apps/*"
   - "packages/*"
+# pnpm 11 defaults to a 1-day minimum-release-age check, re-verifying every
+# lockfile entry's publish date against the registry before install. That's
+# a real protection for a normal `pnpm install` that might resolve a
+# brand-new (possibly compromised) version, but our Docker builds use
+# --frozen-lockfile — nothing gets re-resolved, only what's already pinned
+# in pnpm-lock.yaml gets installed — so the check adds a slow, low-value
+# metadata round-trip per package with no corresponding benefit. Disabled
+# here rather than only in CI/Docker so `pnpm install` behaves the same
+# everywhere.
+minimumReleaseAge: 0
 allowBuilds:
   '@nestjs/core': true
   '@prisma/client': true

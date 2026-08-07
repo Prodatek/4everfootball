@@ -9,7 +9,7 @@
 # API URL has to be supplied as a build ARG, not just a runtime env var.
 
 FROM node:22 AS base
-RUN corepack enable
+RUN corepack enable && pnpm config set store-dir /pnpm-store
 WORKDIR /repo
 
 FROM base AS deps
@@ -18,7 +18,13 @@ COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
 COPY packages/shared/package.json packages/shared/package.json
 COPY packages/tsconfig/package.json packages/tsconfig/package.json
-RUN pnpm install --frozen-lockfile
+# Cache mount persists pnpm's content-addressable store across builds (and
+# across the api/web images, since both use the same cache id) — without
+# this, every build re-fetches all ~1000+ packages from the registry from
+# scratch, which is slow even on a fast connection and can time out on a
+# slow one.
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm-store \
+    pnpm install --frozen-lockfile
 
 FROM deps AS build
 ARG NEXT_PUBLIC_API_URL
