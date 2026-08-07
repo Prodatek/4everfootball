@@ -11,6 +11,20 @@ packages:
 # here rather than only in CI/Docker so `pnpm install` behaves the same
 # everywhere.
 minimumReleaseAge: 0
+# pnpm 11 also raised the default network concurrency to
+# min(96, max(cpuCores*3, 64)) — fine on a normal connection, but on this
+# connection (single requests already take 14-45s to registry.npmjs.org)
+# that many requests in flight at once causes contention that pushes some
+# requests past the default 60s fetch timeout, aborting the whole install
+# late (e.g. failing on package 910/915 after everything else succeeded).
+# Lower concurrency so requests aren't fighting each other, and give the
+# ones that do go through more time/retries before giving up.
+networkConcurrency: 8
+fetchTimeout: 300000
+fetchRetries: 5
+fetchRetryFactor: 2
+fetchRetryMintimeout: 15000
+fetchRetryMaxtimeout: 90000
 allowBuilds:
   '@nestjs/core': true
   '@prisma/client': true
