@@ -7,6 +7,7 @@ import { isAxiosError } from "axios";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Container } from "@/components/layout/container";
 import { fetchFixtureById } from "@/features/fixtures/api";
 import { useLiveMatch } from "@/features/matches/use-live-match";
 import { MatchTimeline } from "@/features/matches/match-timeline";
@@ -63,7 +64,7 @@ export default function FixtureDetailPage({
   const hasScore = homeScore !== null && awayScore !== null;
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 p-6">
+    <Container size="sm" className="flex flex-1 flex-col gap-6 py-6">
       <div className="flex items-center justify-between">
         <Button render={<Link href="/fixtures" />} variant="outline" className="w-fit">
           Back to fixtures
@@ -126,6 +127,6 @@ export default function FixtureDetailPage({
           <MatchTimeline events={events} />
         </CardContent>
       </Card>
-    </div>
+    </Container>
   );
 }

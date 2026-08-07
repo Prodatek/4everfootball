@@ -14,6 +14,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Container } from "@/components/layout/container";
+import { EntityImage } from "@/components/media/entity-image";
 import { fetchPlayers } from "@/features/players/api";
 
 export default function PlayersPage() {
@@ -33,9 +36,9 @@ export default function PlayersPage() {
   });
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 p-6">
+    <Container size="md" className="flex flex-1 flex-col gap-6 py-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold">Players</h1>
+        <h1 className="font-display text-2xl uppercase tracking-wide">Players</h1>
         <div className="flex gap-3">
           <Select
             value={position}
@@ -68,17 +71,27 @@ export default function PlayersPage() {
         </div>
       </div>
 
-      {isLoading && <p className="text-muted-foreground">Loading players...</p>}
       {isError && <p className="text-destructive">Failed to load players.</p>}
       {data && data.data.length === 0 && (
         <p className="text-muted-foreground">No players found.</p>
       )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
+        {isLoading &&
+          Array.from({ length: 6 }).map((_, index) => (
+            <Skeleton key={index} className="h-24 rounded-lg" />
+          ))}
         {data?.data.map((player) => (
           <Link key={player.id} href={`/players/${player.slug}`}>
-            <Card className="transition-colors hover:bg-muted">
-              <CardHeader>
+            <Card className="transition-colors hover:border-primary hover:bg-muted">
+              <CardHeader className="flex items-center gap-3">
+                <EntityImage
+                  src={player.photoUrl}
+                  alt={`${player.firstName} ${player.lastName}`}
+                  fallback="player"
+                  className="size-12 shrink-0"
+                  sizes="48px"
+                />
                 <CardTitle className="text-base">
                   {player.firstName} {player.lastName}
                 </CardTitle>
@@ -115,6 +128,6 @@ export default function PlayersPage() {
           </Button>
         </div>
       )}
-    </div>
+    </Container>
   );
 }

@@ -1,21 +1,32 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Big_Shoulders, IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// "Floodlight" identity fonts — condensed stadium-signage display, a clean
+// body/UI grotesk, and tabular mono for scores/live clocks.
+const displayFont = Big_Shoulders({
+  variable: "--font-display",
+  weight: "900",
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const sansFont = IBM_Plex_Sans({
+  variable: "--font-sans",
+  weight: ["400", "600"],
+  subsets: ["latin"],
+});
+
+const monoFont = IBM_Plex_Mono({
+  variable: "--font-mono",
+  weight: "600",
   subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
   title: "4EverFootball",
-  description: "The operating system for football.",
+  description:
+    "Every kickoff, goal, and final whistle — streamed from the touchline straight to your feed.",
 };
 
 export default function RootLayout({
@@ -26,7 +37,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${displayFont.variable} ${sansFont.variable} ${monoFont.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <Providers>{children}</Providers>

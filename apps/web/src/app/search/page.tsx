@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Container } from "@/components/layout/container";
 import { search } from "@/features/search/api";
 
 function SearchResultsView() {
@@ -126,11 +127,11 @@ function SearchResultsView() {
 
 export default function SearchPage() {
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 p-6">
-      <h1 className="text-2xl font-semibold">Search</h1>
+    <Container size="sm" className="flex flex-1 flex-col gap-6 py-6">
+      <h1 className="font-display text-2xl uppercase tracking-wide">Search</h1>
       <Suspense fallback={<p className="text-muted-foreground">Loading...</p>}>
         <SearchResultsView />
       </Suspense>
-    </div>
+    </Container>
   );
 }

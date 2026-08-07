@@ -6,6 +6,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Container } from "@/components/layout/container";
+import { EntityImage } from "@/components/media/entity-image";
 import { fetchTeams } from "@/features/teams/api";
 
 export default function TeamsPage() {
@@ -18,9 +21,9 @@ export default function TeamsPage() {
   });
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 p-6">
+    <Container size="md" className="flex flex-1 flex-col gap-6 py-6">
       <div className="flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold">Teams</h1>
+        <h1 className="font-display text-2xl uppercase tracking-wide">Teams</h1>
         <Input
           placeholder="Search teams..."
           className="max-w-xs"
@@ -32,7 +35,6 @@ export default function TeamsPage() {
         />
       </div>
 
-      {isLoading && <p className="text-muted-foreground">Loading teams...</p>}
       {isError && <p className="text-destructive">Failed to load teams.</p>}
 
       {data && data.data.length === 0 && (
@@ -40,10 +42,21 @@ export default function TeamsPage() {
       )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
+        {isLoading &&
+          Array.from({ length: 6 }).map((_, index) => (
+            <Skeleton key={index} className="h-24 rounded-lg" />
+          ))}
         {data?.data.map((team) => (
           <Link key={team.id} href={`/teams/${team.slug}`}>
-            <Card className="transition-colors hover:bg-muted">
-              <CardHeader>
+            <Card className="transition-colors hover:border-primary hover:bg-muted">
+              <CardHeader className="flex items-center gap-3">
+                <EntityImage
+                  src={team.logoUrl}
+                  alt={team.name}
+                  fallback="team"
+                  className="size-12 shrink-0"
+                  sizes="48px"
+                />
                 <CardTitle className="text-base">{team.name}</CardTitle>
               </CardHeader>
               <CardContent className="text-sm text-muted-foreground">
@@ -77,6 +90,6 @@ export default function TeamsPage() {
           </Button>
         </div>
       )}
-    </div>
+    </Container>
   );
 }

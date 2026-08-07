@@ -11,6 +11,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Container } from "@/components/layout/container";
 import { fetchFixtures } from "@/features/fixtures/api";
 import { FixtureRow } from "@/features/fixtures/fixture-row";
 
@@ -31,9 +33,9 @@ export default function FixturesPage() {
   });
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 p-6">
+    <Container size="md" className="flex flex-1 flex-col gap-6 py-6">
       <div className="flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold">Fixtures</h1>
+        <h1 className="font-display text-2xl uppercase tracking-wide">Fixtures</h1>
         <Select
           value={status}
           onValueChange={(value) => {
@@ -55,13 +57,16 @@ export default function FixturesPage() {
         </Select>
       </div>
 
-      {isLoading && <p className="text-muted-foreground">Loading fixtures...</p>}
       {isError && <p className="text-destructive">Failed to load fixtures.</p>}
       {data && data.data.length === 0 && (
         <p className="text-muted-foreground">No fixtures found.</p>
       )}
 
       <div className="flex flex-col gap-2">
+        {isLoading &&
+          Array.from({ length: 5 }).map((_, index) => (
+            <Skeleton key={index} className="h-16 rounded-md" />
+          ))}
         {data?.data.map((fixture) => (
           <FixtureRow key={fixture.id} fixture={fixture} />
         ))}
@@ -90,6 +95,6 @@ export default function FixturesPage() {
           </Button>
         </div>
       )}
-    </div>
+    </Container>
   );
 }

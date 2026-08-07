@@ -6,6 +6,8 @@ import { useQuery } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Container } from "@/components/layout/container";
+import { EntityImage } from "@/components/media/entity-image";
 import { fetchPlayerBySlug } from "@/features/players/api";
 import { fetchPlayerStats } from "@/features/stats/api";
 
@@ -49,13 +51,20 @@ export default function PlayerDetailPage({
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 p-6">
+    <Container size="sm" className="flex flex-1 flex-col gap-6 py-6">
       <Button render={<Link href="/players" />} variant="outline" className="w-fit">
         Back to players
       </Button>
       <Card>
-        <CardHeader>
-          <CardTitle className="text-2xl">
+        <CardHeader className="flex items-center gap-4">
+          <EntityImage
+            src={player.photoUrl}
+            alt={`${player.firstName} ${player.lastName}`}
+            fallback="player"
+            className="size-24 shrink-0"
+            sizes="96px"
+          />
+          <CardTitle className="font-display text-3xl uppercase tracking-wide">
             {player.firstName} {player.lastName}
           </CardTitle>
         </CardHeader>
@@ -104,28 +113,28 @@ export default function PlayerDetailPage({
           </CardHeader>
           <CardContent className="grid grid-cols-3 gap-4 text-center sm:grid-cols-5">
             <div>
-              <p className="text-2xl font-semibold">{stats.appearances}</p>
+              <p className="font-mono text-2xl font-semibold">{stats.appearances}</p>
               <p className="text-xs text-muted-foreground">Appearances</p>
             </div>
             <div>
-              <p className="text-2xl font-semibold">{stats.goals}</p>
+              <p className="font-mono text-2xl font-semibold text-primary">{stats.goals}</p>
               <p className="text-xs text-muted-foreground">Goals</p>
             </div>
             <div>
-              <p className="text-2xl font-semibold">{stats.assists}</p>
+              <p className="font-mono text-2xl font-semibold">{stats.assists}</p>
               <p className="text-xs text-muted-foreground">Assists</p>
             </div>
             <div>
-              <p className="text-2xl font-semibold">{stats.yellowCards}</p>
+              <p className="font-mono text-2xl font-semibold">{stats.yellowCards}</p>
               <p className="text-xs text-muted-foreground">Yellow cards</p>
             </div>
             <div>
-              <p className="text-2xl font-semibold">{stats.redCards}</p>
+              <p className="font-mono text-2xl font-semibold text-destructive">{stats.redCards}</p>
               <p className="text-xs text-muted-foreground">Red cards</p>
             </div>
           </CardContent>
         </Card>
       )}
-    </div>
+    </Container>
   );
 }

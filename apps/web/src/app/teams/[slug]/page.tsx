@@ -6,6 +6,8 @@ import { useQuery } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Container } from "@/components/layout/container";
+import { EntityImage } from "@/components/media/entity-image";
 import { fetchTeamBySlug } from "@/features/teams/api";
 import { fetchPlayers } from "@/features/players/api";
 import { fetchFixtures } from "@/features/fixtures/api";
@@ -59,13 +61,22 @@ export default function TeamDetailPage({
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 p-6">
+    <Container size="sm" className="flex flex-1 flex-col gap-6 py-6">
       <Button render={<Link href="/teams" />} variant="outline" className="w-fit">
         Back to teams
       </Button>
       <Card>
-        <CardHeader>
-          <CardTitle className="text-2xl">{team.name}</CardTitle>
+        <CardHeader className="flex items-center gap-4">
+          <EntityImage
+            src={team.logoUrl}
+            alt={team.name}
+            fallback="team"
+            className="size-24 shrink-0"
+            sizes="96px"
+          />
+          <CardTitle className="font-display text-3xl uppercase tracking-wide">
+            {team.name}
+          </CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-2 text-sm">
           {team.shortName && (
@@ -128,6 +139,6 @@ export default function TeamDetailPage({
           ))}
         </CardContent>
       </Card>
-    </div>
+    </Container>
   );
 }

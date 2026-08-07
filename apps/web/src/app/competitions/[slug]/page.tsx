@@ -15,6 +15,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Container } from "@/components/layout/container";
+import { EntityImage } from "@/components/media/entity-image";
 import { fetchCompetitionBySlug, fetchCompetitionEntries } from "@/features/competitions/api";
 import { fetchFixtures } from "@/features/fixtures/api";
 import { FixtureRow } from "@/features/fixtures/fixture-row";
@@ -101,13 +103,20 @@ export default function CompetitionDetailPage({
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 p-6">
+    <Container size="sm" className="flex flex-1 flex-col gap-6 py-6">
       <Button render={<Link href="/competitions" />} variant="outline" className="w-fit">
         Back to competitions
       </Button>
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-2xl">
+        <CardHeader className="flex items-center gap-4">
+          <EntityImage
+            src={competition.logoUrl}
+            alt={competition.name}
+            fallback="competition"
+            className="size-24 shrink-0"
+            sizes="96px"
+          />
+          <CardTitle className="flex items-center gap-2 font-display text-3xl uppercase tracking-wide">
             {competition.name}
             <Badge variant="secondary">{competition.type}</Badge>
           </CardTitle>
@@ -169,12 +178,12 @@ export default function CompetitionDetailPage({
                           {row.teamName}
                         </Link>
                       </TableCell>
-                      <TableCell className="text-right">{row.played}</TableCell>
-                      <TableCell className="text-right">{row.won}</TableCell>
-                      <TableCell className="text-right">{row.drawn}</TableCell>
-                      <TableCell className="text-right">{row.lost}</TableCell>
-                      <TableCell className="text-right">{row.goalDifference}</TableCell>
-                      <TableCell className="text-right font-semibold">
+                      <TableCell className="text-right font-mono">{row.played}</TableCell>
+                      <TableCell className="text-right font-mono">{row.won}</TableCell>
+                      <TableCell className="text-right font-mono">{row.drawn}</TableCell>
+                      <TableCell className="text-right font-mono">{row.lost}</TableCell>
+                      <TableCell className="text-right font-mono">{row.goalDifference}</TableCell>
+                      <TableCell className="text-right font-mono font-semibold text-primary">
                         {row.points}
                       </TableCell>
                       <TableCell>
@@ -221,7 +230,7 @@ export default function CompetitionDetailPage({
                 className="flex items-center justify-between rounded-md px-2 py-1 text-sm hover:bg-muted"
               >
                 <span>{row.playerName}</span>
-                <span className="font-semibold">{row.count}</span>
+                <span className="font-mono font-semibold text-primary">{row.count}</span>
               </Link>
             ))}
           </CardContent>
@@ -242,7 +251,7 @@ export default function CompetitionDetailPage({
                 className="flex items-center justify-between rounded-md px-2 py-1 text-sm hover:bg-muted"
               >
                 <span>{row.playerName}</span>
-                <span className="font-semibold">{row.count}</span>
+                <span className="font-mono font-semibold text-primary">{row.count}</span>
               </Link>
             ))}
           </CardContent>
@@ -282,6 +291,6 @@ export default function CompetitionDetailPage({
           ))}
         </CardContent>
       </Card>
-    </div>
+    </Container>
   );
 }

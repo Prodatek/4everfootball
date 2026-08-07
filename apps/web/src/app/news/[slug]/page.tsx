@@ -7,6 +7,8 @@ import { isAxiosError } from "axios";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Container } from "@/components/layout/container";
+import { EntityImage } from "@/components/media/entity-image";
 import { fetchNewsBySlug } from "@/features/news/api";
 
 export default function NewsDetailPage({
@@ -47,13 +49,22 @@ export default function NewsDetailPage({
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 p-6">
+    <Container size="sm" className="flex flex-1 flex-col gap-6 py-6">
       <Button render={<Link href="/news" />} variant="outline" className="w-fit">
         Back to news
       </Button>
-      <Card>
+      <Card className="overflow-hidden">
+        <EntityImage
+          src={article.coverImageUrl}
+          alt={article.title}
+          fallback="news"
+          className="aspect-video w-full rounded-none"
+          sizes="(min-width: 640px) 42rem, 100vw"
+        />
         <CardHeader>
-          <CardTitle className="text-2xl">{article.title}</CardTitle>
+          <CardTitle className="font-display text-3xl uppercase tracking-wide">
+            {article.title}
+          </CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
@@ -70,6 +81,6 @@ export default function NewsDetailPage({
           <div className="whitespace-pre-wrap text-sm leading-relaxed">{article.body}</div>
         </CardContent>
       </Card>
-    </div>
+    </Container>
   );
 }

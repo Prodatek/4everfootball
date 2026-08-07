@@ -6,6 +6,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Container } from "@/components/layout/container";
+import { EntityImage } from "@/components/media/entity-image";
 import { fetchNews } from "@/features/news/api";
 
 export default function NewsPage() {
@@ -18,9 +21,9 @@ export default function NewsPage() {
   });
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 p-6">
+    <Container size="md" className="flex flex-1 flex-col gap-6 py-6">
       <div className="flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold">News</h1>
+        <h1 className="font-display text-2xl uppercase tracking-wide">News</h1>
         <Input
           placeholder="Search articles..."
           className="max-w-xs"
@@ -32,16 +35,26 @@ export default function NewsPage() {
         />
       </div>
 
-      {isLoading && <p className="text-muted-foreground">Loading articles...</p>}
       {isError && <p className="text-destructive">Failed to load articles.</p>}
       {data && data.data.length === 0 && (
         <p className="text-muted-foreground">No articles found.</p>
       )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
+        {isLoading &&
+          Array.from({ length: 6 }).map((_, index) => (
+            <Skeleton key={index} className="aspect-[4/3] rounded-lg" />
+          ))}
         {data?.data.map((article) => (
           <Link key={article.id} href={`/news/${article.slug}`}>
-            <Card className="h-full transition-colors hover:bg-muted">
+            <Card className="h-full overflow-hidden transition-colors hover:border-primary hover:bg-muted">
+              <EntityImage
+                src={article.coverImageUrl}
+                alt={article.title}
+                fallback="news"
+                className="aspect-video w-full rounded-none"
+                sizes="(min-width: 768px) 33vw, 100vw"
+              />
               <CardHeader>
                 <CardTitle className="text-base">{article.title}</CardTitle>
               </CardHeader>
@@ -81,6 +94,6 @@ export default function NewsPage() {
           </Button>
         </div>
       )}
-    </div>
+    </Container>
   );
 }
