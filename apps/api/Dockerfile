@@ -4,8 +4,14 @@
 #  - `deps` only sees package.json files, so it stays cached across code-only changes.
 #  - the `build` stage (full devDependencies, incl. the `prisma` CLI) is also exposed
 #    as a target on its own, because the pruned `runtime` image below drops
-#    devDependencies via `pnpm deploy --prod` and therefore has no `prisma` CLI to run
-#    migrations with. docker-compose's `api-migrate` service targets `build` instead.
+#    devDependencies and therefore has no `prisma` CLI to run migrations with.
+#    docker-compose's `api-migrate` and `prisma-studio` services target `build`
+#    instead. The `--prod` deploy step that strips devDependencies has to live
+#    in its own `prod-deps` stage downstream of `build` rather than at the end
+#    of `build` itself — `pnpm deploy --prod` mutates the workspace it runs in
+#    as a side effect (it's how it computes the prod-only subset), so putting
+#    it inside `build` was stripping `prisma` out of the exact image
+#    `api-migrate`/`prisma-studio` depend on having it in.
 
 FROM node:22 AS base
 RUN corepack enable && pnpm config set store-dir /pnpm-store
@@ -29,12 +35,14 @@ FROM deps AS build
 COPY . .
 RUN pnpm --filter @4ef/api exec prisma generate
 RUN pnpm --filter @4ef/api build
+
+FROM build AS prod-deps
 RUN pnpm --filter @4ef/api deploy --prod --legacy /prod/api
 
 FROM node:22 AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
-COPY --from=build /prod/api ./
+COPY --from=prod-deps /prod/api ./
 COPY --from=build /repo/apps/api/prisma ./prisma
 EXPOSE 4000
 CMD ["node", "dist/main.js"]
