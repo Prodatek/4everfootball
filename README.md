@@ -38,6 +38,9 @@ docker compose run --rm api-migrate   # applies Prisma migrations, one-shot
   image drops `devDependencies`, including the `prisma` CLI, via
   `pnpm deploy --prod`), so it's the one to run for migrations rather than
   `docker compose exec api ...`.
+- For a public-testing deploy behind a real domain (HTTPS, `nginx` +
+  Let's Encrypt), see `infrastructure/nginx/README.md` — separate from the
+  Terraform/ECS path in `infrastructure/README.md`.
 
 ## Status
 

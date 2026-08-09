@@ -67,8 +67,16 @@ services:
     environment:
       # Override the .env's localhost URLs with in-network service hostnames.
       DATABASE_URL: "postgresql://fourever:fourever@postgres:5432/fourever?schema=public"
-      S3_ENDPOINT: "http://minio:9000"
       MEILISEARCH_HOST: "http://meilisearch:7700"
+      # Public-testing deploy (see infrastructure/README.md): CORS must allow
+      # the public web origin, and S3_ENDPOINT becomes the public MinIO
+      # hostname because createUploadUrl()'s presigned URLs embed whatever
+      # host the S3 client is configured with — the browser has to be able
+      # to resolve it. Comment these two out (or set back to localhost) for
+      # local-only docker compose use without nginx/DNS.
+      WEB_APP_URL: "https://4ever.buildspecs.io"
+      S3_ENDPOINT: "https://media.4ever.buildspecs.io"
+      S3_PUBLIC_URL: "https://media.4ever.buildspecs.io/media"
     ports:
       - "4000:4000"
     depends_on:
@@ -122,15 +130,49 @@ services:
         # Baked into the client bundle at build time — must be reachable from
         # the browser, not from inside the compose network. Override this
         # build arg for any non-localhost deployment.
-        NEXT_PUBLIC_API_URL: "http://localhost:4000"
+        NEXT_PUBLIC_API_URL: "https://api.4ever.buildspecs.io"
     restart: unless-stopped
     ports:
       - "3000:3000"
     depends_on:
       - api
 
+  # Public-testing reverse proxy — see infrastructure/README.md for the
+  # one-time certbot bootstrap this depends on before nginx can start (it
+  # fails to boot if the certs it references in conf.d/ don't exist yet).
+  # Stands in for the eventual ALB/ECS deploy in infrastructure/, not a
+  # replacement for it.
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infrastructure/nginx/conf.d:/etc/nginx/conf.d:ro
+      - certbot_www:/var/www/certbot:ro
+      - certbot_certs:/etc/letsencrypt:ro
+    depends_on:
+      - web
+      - api
+      - minio
+
+  # Renews the Let's Encrypt cert twice a day; does NOT reload nginx after
+  # renewal (see infra README) — this is a quick-deploy stand-in, not
+  # production automation.
+  certbot:
+    image: certbot/certbot:latest
+    restart: unless-stopped
+    volumes:
+      - certbot_www:/var/www/certbot
+      - certbot_certs:/etc/letsencrypt
+    entrypoint: >
+      /bin/sh -c "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot; sleep 12h & wait $${!}; done;"
+
 volumes:
   postgres_data:
   redis_data:
   meili_data:
   minio_data:
+  certbot_www:
+  certbot_certs:
