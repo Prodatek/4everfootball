@@ -45,6 +45,15 @@ $ pnpm run start:dev
 $ pnpm run start:prod
 ```
 
+```bash
+
+# manual user-role update
+$ docker compose exec postgres psql -U fourever -d fourever -c "UPDATE users SET roles = array_append(roles, 'SUPER_ADMIN') WHERE email = 'prodatekonstructions@gmail.com';"
+
+# verify
+$ docker compose exec postgres psql -U fourever -d fourever -c "SELECT email, roles FROM users WHERE email = 'YOUR_EMAIL_HERE';"
+```
+
 ## Run tests
 
 ```bash

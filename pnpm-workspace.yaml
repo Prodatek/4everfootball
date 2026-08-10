@@ -19,9 +19,9 @@ minimumReleaseAge: 0
 # late (e.g. failing on package 910/915 after everything else succeeded).
 # Lower concurrency so requests aren't fighting each other, and give the
 # ones that do go through more time/retries before giving up.
-networkConcurrency: 8
-fetchTimeout: 300000
-fetchRetries: 5
+networkConcurrency: 4
+fetchTimeout: 900000
+fetchRetries: 8
 fetchRetryFactor: 2
 fetchRetryMintimeout: 15000
 fetchRetryMaxtimeout: 90000
