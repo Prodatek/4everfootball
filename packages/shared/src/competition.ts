@@ -18,6 +18,9 @@ export interface Competition {
   startDate: string | null;
   endDate: string | null;
   logoUrl: string | null;
+  primaryColor: string | null;
+  secondaryColor: string | null;
+  sponsorLogoUrl: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

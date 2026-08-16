@@ -10,5 +10,6 @@ import { PlayerStatsController } from './presentation/player-stats.controller';
   imports: [CompetitionsModule, MatchesModule, PlayersModule],
   controllers: [CompetitionStatsController, PlayerStatsController],
   providers: [StatsService],
+  exports: [StatsService],
 })
 export class StatsModule {}

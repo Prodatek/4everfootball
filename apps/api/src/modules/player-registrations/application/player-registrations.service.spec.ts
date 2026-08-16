@@ -3,6 +3,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { PlayerRegistrationsService } from './player-registrations.service';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { PaymentsService } from '../../payments/application/payments.service';
+import { GraphicsService } from '../../graphics/application/graphics.service';
 
 function fakePrisma() {
   return {
@@ -12,7 +13,8 @@ function fakePrisma() {
       upsert: jest.fn(),
       findMany: jest.fn(),
       updateMany: jest.fn(),
-      findUnique: jest.fn(),
+      findUnique: jest.fn().mockResolvedValue(null),
+      count: jest.fn().mockResolvedValue(0),
     },
   };
 }
@@ -21,6 +23,7 @@ describe('PlayerRegistrationsService', () => {
   let service: PlayerRegistrationsService;
   let prisma: ReturnType<typeof fakePrisma>;
   let paymentsService: jest.Mocked<PaymentsService>;
+  let graphicsService: jest.Mocked<GraphicsService>;
 
   beforeEach(async () => {
     prisma = fakePrisma();
@@ -29,11 +32,16 @@ describe('PlayerRegistrationsService', () => {
         PlayerRegistrationsService,
         { provide: PrismaService, useValue: prisma },
         { provide: PaymentsService, useValue: { initialize: jest.fn() } },
+        {
+          provide: GraphicsService,
+          useValue: { enqueue: jest.fn().mockResolvedValue(null) },
+        },
       ],
     }).compile();
 
     service = moduleRef.get(PlayerRegistrationsService);
     paymentsService = moduleRef.get(PaymentsService);
+    graphicsService = moduleRef.get(GraphicsService);
   });
 
   describe('register', () => {
@@ -41,15 +49,32 @@ describe('PlayerRegistrationsService', () => {
       id: 'p1',
       teamId: 'team-1',
       dateOfBirth: new Date('1995-01-01'),
+      firstName: 'Ada',
+      lastName: 'Okoro',
+      nationality: 'Nigeria',
+      position: 'FORWARD',
+      shirtNumber: 10,
+      photoUrl: null,
+      team: { name: 'Ikorodu FC' },
     };
     const minorPlayer = {
       id: 'p2',
       teamId: 'team-1',
       dateOfBirth: new Date('2015-01-01'),
+      firstName: 'Bola',
+      lastName: 'Ade',
+      nationality: 'Nigeria',
+      position: 'MIDFIELDER',
+      shirtNumber: 7,
+      photoUrl: null,
+      team: { name: 'Ikorodu FC' },
     };
 
     beforeEach(() => {
-      prisma.competition.findUnique.mockResolvedValue({ id: 'comp-1' });
+      prisma.competition.findUnique.mockResolvedValue({
+        id: 'comp-1',
+        name: 'Lagos Cup',
+      });
     });
 
     it('registers an adult player with no guardian consent needed', async () => {
@@ -59,6 +84,63 @@ describe('PlayerRegistrationsService', () => {
       await service.register('comp-1', 'team-1', 'p1');
 
       expect(prisma.playerRegistration.upsert).toHaveBeenCalled();
+    });
+
+    it('enqueues an ungated PLAYER_PASSPORT the first time a player registers', async () => {
+      prisma.player.findUnique.mockResolvedValue(adultPlayer);
+      prisma.playerRegistration.findUnique.mockResolvedValue(null); // no existing row -> first registration
+      prisma.playerRegistration.upsert.mockResolvedValue({ id: 'reg-1' });
+
+      await service.register('comp-1', 'team-1', 'p1');
+
+      expect(graphicsService.enqueue).toHaveBeenCalledWith(
+        expect.objectContaining({
+          template: 'PLAYER_PASSPORT',
+          subjectId: 'p1',
+          data: expect.objectContaining({
+            playerName: 'Ada Okoro',
+            teamName: 'Ikorodu FC',
+          }),
+        }),
+      );
+    });
+
+    it('does not re-enqueue a passport when the same player registers (edits) again', async () => {
+      prisma.player.findUnique.mockResolvedValue(adultPlayer);
+      prisma.playerRegistration.findUnique.mockResolvedValue({
+        id: 'existing-reg',
+      }); // already registered
+      prisma.playerRegistration.upsert.mockResolvedValue({ id: 'reg-1' });
+
+      await service.register('comp-1', 'team-1', 'p1');
+
+      expect(graphicsService.enqueue).not.toHaveBeenCalled();
+    });
+
+    it('enqueues a platform MILESTONE when the total registration count lands on a threshold', async () => {
+      prisma.player.findUnique.mockResolvedValue(adultPlayer);
+      prisma.playerRegistration.findUnique.mockResolvedValue(null);
+      prisma.playerRegistration.upsert.mockResolvedValue({ id: 'reg-1' });
+      prisma.playerRegistration.count.mockResolvedValue(100);
+
+      await service.register('comp-1', 'team-1', 'p1');
+
+      expect(graphicsService.enqueue).toHaveBeenCalledWith(
+        expect.objectContaining({ template: 'MILESTONE' }),
+      );
+    });
+
+    it('does not enqueue a MILESTONE when the total registration count is not on a threshold', async () => {
+      prisma.player.findUnique.mockResolvedValue(adultPlayer);
+      prisma.playerRegistration.findUnique.mockResolvedValue(null);
+      prisma.playerRegistration.upsert.mockResolvedValue({ id: 'reg-1' });
+      prisma.playerRegistration.count.mockResolvedValue(101);
+
+      await service.register('comp-1', 'team-1', 'p1');
+
+      expect(graphicsService.enqueue).not.toHaveBeenCalledWith(
+        expect.objectContaining({ template: 'MILESTONE' }),
+      );
     });
 
     it('rejects a minor with no guardian consent at all', async () => {

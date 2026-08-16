@@ -10,6 +10,7 @@ function fakePrisma() {
     payment: { findUnique: jest.fn(), update: jest.fn() },
     playerRegistration: { updateMany: jest.fn() },
     competition: { update: jest.fn() },
+    mediaPackEntitlement: { create: jest.fn() },
   };
   return {
     payment: {
@@ -190,6 +191,63 @@ describe('PaymentsService', () => {
         where: { id: 'comp-1' },
         data: { licenceStatus: 'LICENSED' },
       });
+    });
+
+    it('grants a whole-club MediaPackEntitlement for an ADD_ON/MEDIA_PACK_ORGANISATION payment', async () => {
+      prisma.__tx.payment.findUnique.mockResolvedValue({
+        id: 'pay-1',
+        status: 'PENDING',
+        purpose: 'ADD_ON',
+        subjectType: 'MEDIA_PACK_ORGANISATION',
+        subjectId: 'org-1',
+        organisationId: 'org-1',
+      });
+
+      await service.fulfilPayment('pay-1');
+
+      expect(prisma.__tx.mediaPackEntitlement.create).toHaveBeenCalledWith({
+        data: {
+          organisationId: 'org-1',
+          competitionId: null,
+          sourcePaymentId: 'pay-1',
+        },
+      });
+    });
+
+    it('grants a competition-scoped MediaPackEntitlement for an ADD_ON/MEDIA_PACK_COMPETITION payment', async () => {
+      prisma.__tx.payment.findUnique.mockResolvedValue({
+        id: 'pay-1',
+        status: 'PENDING',
+        purpose: 'ADD_ON',
+        subjectType: 'MEDIA_PACK_COMPETITION',
+        subjectId: 'comp-1',
+        organisationId: 'org-1',
+      });
+
+      await service.fulfilPayment('pay-1');
+
+      expect(prisma.__tx.mediaPackEntitlement.create).toHaveBeenCalledWith({
+        data: {
+          organisationId: 'org-1',
+          competitionId: 'comp-1',
+          sourcePaymentId: 'pay-1',
+        },
+      });
+    });
+
+    it('does not grant a media pack entitlement for an unrelated ADD_ON subject type', async () => {
+      prisma.__tx.payment.findUnique.mockResolvedValue({
+        id: 'pay-1',
+        status: 'PENDING',
+        purpose: 'ADD_ON',
+        subjectType: 'DEV_REPORT_TERM',
+        subjectId: 'team-1',
+        organisationId: 'org-1',
+      });
+
+      await service.fulfilPayment('pay-1');
+
+      expect(prisma.__tx.mediaPackEntitlement.create).not.toHaveBeenCalled();
     });
   });
 

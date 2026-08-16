@@ -10,6 +10,9 @@ export interface CompetitionProps {
   startDate: Date | null;
   endDate: Date | null;
   logoUrl: string | null;
+  primaryColor: string | null;
+  secondaryColor: string | null;
+  sponsorLogoUrl: string | null;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;

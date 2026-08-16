@@ -8,6 +8,10 @@ import {
 import type { PaymentProvider, PaymentPurpose } from '@prisma/client';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { PaystackClientService } from '../infrastructure/paystack-client.service';
+import {
+  MEDIA_PACK_COMPETITION_SUBJECT_TYPE,
+  MEDIA_PACK_ORGANISATION_SUBJECT_TYPE,
+} from '../domain/add-on-subjects';
 
 export interface InitializePaymentInput {
   organisationId: string;
@@ -148,11 +152,32 @@ export class PaymentsService {
           where: { id: payment.subjectId },
           data: { licenceStatus: 'LICENSED' },
         });
+      } else if (
+        payment.purpose === 'ADD_ON' &&
+        (payment.subjectType === MEDIA_PACK_ORGANISATION_SUBJECT_TYPE ||
+          payment.subjectType === MEDIA_PACK_COMPETITION_SUBJECT_TYPE)
+      ) {
+        // Phase 3 (brief §4): grants the Club Media Pack entitlement.
+        // Plain create, not upsert — the status==='PAID' early return
+        // above already guarantees this branch only runs once per
+        // payment, and sourcePaymentId is unique, so a second create
+        // attempt would fail loudly rather than silently double-grant.
+        await tx.mediaPackEntitlement.create({
+          data: {
+            organisationId: payment.organisationId,
+            competitionId:
+              payment.subjectType === MEDIA_PACK_COMPETITION_SUBJECT_TYPE
+                ? payment.subjectId
+                : null,
+            sourcePaymentId: payment.id,
+          },
+        });
       }
-      // ACADEMY_PLAN / ADD_ON / ONBOARDING: no fulfilment action yet — those
-      // features (academy workspace, sponsor add-ons) are the brief's Phase
-      // 4/5, out of scope here. The Payment is still correctly marked PAID;
-      // there's just nothing downstream to activate for these purposes yet.
+      // Other ADD_ONS SKUs (dev reports, sponsor dashboard, ...) and
+      // ACADEMY_PLAN/ONBOARDING: no fulfilment action yet — those features
+      // are the brief's Phase 4/5, out of scope here. The Payment is still
+      // correctly marked PAID; there's just nothing downstream to activate
+      // for these purposes yet.
     });
   }
 

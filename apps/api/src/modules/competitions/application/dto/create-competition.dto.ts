@@ -3,6 +3,7 @@ import { CompetitionType } from '@prisma/client';
 import {
   IsDateString,
   IsEnum,
+  IsHexColor,
   IsOptional,
   IsString,
   IsUrl,
@@ -59,4 +60,22 @@ export class CreateCompetitionDto {
   @IsOptional()
   @IsUrl()
   logoUrl?: string;
+
+  // Media engine branding (Phase 3) — applied automatically to every
+  // graphic generated for this competition. Unset falls back to the
+  // platform's default palette at render time.
+  @ApiPropertyOptional({ example: '#a238ff' })
+  @IsOptional()
+  @IsHexColor()
+  primaryColor?: string;
+
+  @ApiPropertyOptional({ example: '#0d0812' })
+  @IsOptional()
+  @IsHexColor()
+  secondaryColor?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUrl()
+  sponsorLogoUrl?: string;
 }

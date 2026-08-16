@@ -12,6 +12,6 @@ import { MediaController } from './presentation/media.controller';
     S3StorageService,
     { provide: MEDIA_REPOSITORY, useClass: PrismaMediaRepository },
   ],
-  exports: [MediaService],
+  exports: [MediaService, S3StorageService],
 })
 export class MediaModule {}

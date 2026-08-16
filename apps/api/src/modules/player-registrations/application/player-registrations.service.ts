@@ -6,6 +6,12 @@ import {
 import { PLAYER_REGISTRATION } from '@4ef/shared';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { PaymentsService } from '../../payments/application/payments.service';
+import { GraphicsService } from '../../graphics/application/graphics.service';
+import {
+  PLATFORM_PLAYER_MILESTONES,
+  crossedMilestone,
+} from '../../graphics/domain/milestones';
+import { formatAgeLabel } from '../../graphics/domain/age';
 import {
   hasCompleteGuardianConsent,
   isMinor,
@@ -17,6 +23,7 @@ export class PlayerRegistrationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly paymentsService: PaymentsService,
+    private readonly graphicsService: GraphicsService,
   ) {}
 
   /**
@@ -32,7 +39,10 @@ export class PlayerRegistrationsService {
   ) {
     const [competition, player] = await Promise.all([
       this.prisma.competition.findUnique({ where: { id: competitionId } }),
-      this.prisma.player.findUnique({ where: { id: playerId } }),
+      this.prisma.player.findUnique({
+        where: { id: playerId },
+        include: { team: true },
+      }),
     ]);
 
     if (!competition) throw new NotFoundException('Competition not found');
@@ -51,7 +61,17 @@ export class PlayerRegistrationsService {
 
     const priceKobo = PLAYER_REGISTRATION.STANDARD.priceKobo;
 
-    return this.prisma.playerRegistration.upsert({
+    // Checked before the upsert (not derived from its result — Prisma's
+    // upsert doesn't report which branch it took) so the passport/milestone
+    // hooks below only fire on a genuinely new registration, not every time
+    // a club edits guardian details on an existing DRAFT row.
+    const isFirstRegistration =
+      (await this.prisma.playerRegistration.findUnique({
+        where: { competitionId_playerId: { competitionId, playerId } },
+        select: { id: true },
+      })) === null;
+
+    const registration = await this.prisma.playerRegistration.upsert({
       where: { competitionId_playerId: { competitionId, playerId } },
       create: {
         competitionId,
@@ -74,6 +94,73 @@ export class PlayerRegistrationsService {
         guardianConsentAt: guardianConsent ? new Date() : undefined,
       },
     });
+
+    if (isFirstRegistration) {
+      await this.triggerRegistrationGraphics(player, competition.name);
+    }
+
+    return registration;
+  }
+
+  /**
+   * Player passport card — brief §4: "on registration and on demand," and
+   * deliberately ungated ("it is the acquisition loop"). The platform-wide
+   * milestone counts total registration rows (any status, not just
+   * CONFIRMED/paid) as a pragmatic "Nth player joined the platform" proxy —
+   * counting only paid registrations would mean this hook lives inside
+   * PaymentsService.fulfilPayment() instead, which would need
+   * PaymentsModule to import GraphicsModule; GraphicsModule already imports
+   * (transitively, via MediaPacksModule) PaymentsModule, so that would
+   * close a cycle. Registering here avoids it entirely.
+   */
+  private async triggerRegistrationGraphics(
+    player: {
+      id: string;
+      firstName: string;
+      lastName: string;
+      dateOfBirth: Date | null;
+      nationality: string | null;
+      position: string | null;
+      shirtNumber: number | null;
+      photoUrl: string | null;
+      team: { name: string } | null;
+    },
+    competitionName: string,
+  ): Promise<void> {
+    await this.graphicsService.enqueue({
+      template: 'PLAYER_PASSPORT',
+      subjectType: 'PLAYER',
+      subjectId: player.id,
+      data: {
+        playerName: `${player.firstName} ${player.lastName}`,
+        teamName: player.team?.name ?? null,
+        position: player.position,
+        shirtNumber: player.shirtNumber,
+        nationality: player.nationality,
+        ageLabel: formatAgeLabel(player.dateOfBirth),
+        photoUrl: player.photoUrl,
+        competitionName,
+      },
+    });
+
+    const totalRegistrations = await this.prisma.playerRegistration.count();
+    const milestone = crossedMilestone(
+      totalRegistrations,
+      PLATFORM_PLAYER_MILESTONES,
+    );
+
+    if (milestone !== null) {
+      await this.graphicsService.enqueue({
+        template: 'MILESTONE',
+        subjectType: 'PLATFORM',
+        subjectId: 'players',
+        data: {
+          headline: `Player #${milestone.toLocaleString()}`,
+          subheadline: '4everfootball',
+          contextLabel: 'Platform milestone',
+        },
+      });
+    }
   }
 
   /**

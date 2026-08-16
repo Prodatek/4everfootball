@@ -3,6 +3,7 @@ import {
   BadRequestException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import type { FixtureStatus, MatchEventType, Prisma } from '@prisma/client';
@@ -10,6 +11,14 @@ import { PrismaService } from '../../../common/prisma/prisma.service';
 import type { PrismaTransactionClient } from '../../../common/prisma/prisma-transaction.type';
 import { FixturesService } from '../../fixtures/application/fixtures.service';
 import { PlayersService } from '../../players/application/players.service';
+import { GraphicsService } from '../../graphics/application/graphics.service';
+import { StandingsService } from '../../standings/application/standings.service';
+import {
+  PLAYER_GOAL_MILESTONES,
+  crossedMilestone,
+} from '../../graphics/domain/milestones';
+import { startOfDay, endOfDay } from '../../graphics/domain/date-windows';
+import { aggregateTopScorers } from '../../stats/domain/stats-aggregator';
 import { deriveScore } from '../domain/score-deriver';
 import {
   computeEventHash,
@@ -29,6 +38,8 @@ const STATUS_TRANSITIONS: Partial<Record<string, FixtureStatus>> = {
 
 @Injectable()
 export class MatchEventsService {
+  private readonly logger = new Logger(MatchEventsService.name);
+
   constructor(
     @Inject(MATCH_EVENT_REPOSITORY)
     private readonly matchEventRepository: MatchEventRepository,
@@ -36,6 +47,8 @@ export class MatchEventsService {
     private readonly playersService: PlayersService,
     private readonly prisma: PrismaService,
     private readonly gateway: MatchEventsGateway,
+    private readonly graphicsService: GraphicsService,
+    private readonly standingsService: StandingsService,
   ) {}
 
   async listForFixture(fixtureId: string) {
@@ -219,7 +232,271 @@ export class MatchEventsService {
     this.gateway.broadcastEvent(fixtureId, publicEvent);
     this.gateway.broadcastState(fixtureId, await this.getLiveState(fixtureId));
 
+    // Best-effort and awaited, but only the fast part: this enqueues a
+    // Graphic row (a handful of lightweight DB reads/writes), never
+    // renders an image or touches the network — the brief's "never block
+    // a request on image rendering" is about the render step, which
+    // GraphicsWorkerService does entirely off this request path. A
+    // failure here must never fail the request that recorded a real
+    // match event, so errors are caught and logged, not thrown.
+    try {
+      await this.triggerGraphicsForEvent(fixtureId, dto.type, publicEvent);
+    } catch (error) {
+      this.logger.error(
+        `Graphics trigger failed for fixture ${fixtureId} event ${publicEvent.id}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+    }
+
     return publicEvent;
+  }
+
+  private async triggerGraphicsForEvent(
+    fixtureId: string,
+    eventType: MatchEventType,
+    event: {
+      id: string;
+      playerId: string | null;
+      teamId: string | null;
+      minute: number;
+      stoppageMinute: number | null;
+    },
+  ): Promise<void> {
+    if (eventType !== 'GOAL' && eventType !== 'FULL_TIME') {
+      return;
+    }
+
+    const fixture = await this.getFixtureWithTeams(fixtureId);
+
+    if (!fixture) {
+      return;
+    }
+
+    if (eventType === 'GOAL') {
+      await this.triggerGoalGraphics(fixture, event);
+    } else {
+      await this.triggerFullTimeGraphics(fixture);
+    }
+  }
+
+  private async triggerGoalGraphics(
+    fixture: NonNullable<
+      Awaited<ReturnType<MatchEventsService['getFixtureWithTeams']>>
+    >,
+    event: {
+      id: string;
+      playerId: string | null;
+      teamId: string | null;
+      minute: number;
+      stoppageMinute: number | null;
+    },
+  ): Promise<void> {
+    if (!event.playerId || !event.teamId) {
+      return;
+    }
+
+    const player = await this.playersService.findById(event.playerId);
+    if (!player) {
+      return;
+    }
+
+    const scoringTeamName =
+      event.teamId === fixture.homeTeamId
+        ? fixture.homeTeam.name
+        : fixture.awayTeam.name;
+
+    await this.graphicsService.enqueue({
+      template: 'GOAL_ALERT',
+      competitionId: fixture.competitionId,
+      subjectType: 'MATCH_EVENT',
+      subjectId: event.id,
+      data: {
+        competitionName: fixture.competition.name,
+        scorerName: `${player.firstName} ${player.lastName}`,
+        scoringTeamName,
+        minute: event.minute,
+        stoppageMinute: event.stoppageMinute,
+        homeTeamName: fixture.homeTeam.name,
+        awayTeamName: fixture.awayTeam.name,
+        homeScore: fixture.homeScore ?? 0,
+        awayScore: fixture.awayScore ?? 0,
+      },
+    });
+
+    const goalCount = await this.prisma.matchEvent.count({
+      where: {
+        playerId: event.playerId,
+        type: { in: ['GOAL', 'PENALTY_SCORED'] },
+      },
+    });
+    const milestone = crossedMilestone(goalCount, PLAYER_GOAL_MILESTONES);
+
+    if (milestone !== null) {
+      await this.graphicsService.enqueue({
+        template: 'MILESTONE',
+        competitionId: fixture.competitionId,
+        subjectType: 'PLAYER',
+        subjectId: event.playerId,
+        data: {
+          headline: `Goal #${milestone}`,
+          subheadline: `${player.firstName} ${player.lastName}`,
+          contextLabel: `${fixture.competition.name} · career milestone`,
+        },
+      });
+    }
+  }
+
+  private async triggerFullTimeGraphics(
+    fixture: NonNullable<
+      Awaited<ReturnType<MatchEventsService['getFixtureWithTeams']>>
+    >,
+  ): Promise<void> {
+    await this.graphicsService.enqueue({
+      template: 'FULL_TIME_RESULT',
+      competitionId: fixture.competitionId,
+      subjectType: 'FIXTURE',
+      subjectId: fixture.id,
+      data: {
+        competitionName: fixture.competition.name,
+        homeTeamName: fixture.homeTeam.name,
+        awayTeamName: fixture.awayTeam.name,
+        homeScore: fixture.homeScore ?? 0,
+        awayScore: fixture.awayScore ?? 0,
+        homeLogoUrl: fixture.homeTeam.logoUrl,
+        awayLogoUrl: fixture.awayTeam.logoUrl,
+        venueName: fixture.venueName,
+        kickoffDate: fixture.kickoffAt.toISOString(),
+      },
+    });
+
+    await this.triggerLeagueTableIfRoundOver(fixture);
+    await this.triggerSeasonSummaryIfSeasonOver(fixture);
+  }
+
+  /**
+   * "League table card — end of each round" (brief §4). This schema has no
+   * `round`/`matchday` concept (fixtures just carry a date) — read as "the
+   * last fixture scheduled for this competition on this calendar day just
+   * finished," computed from existing fixture data rather than a field
+   * that doesn't exist. Flagged in the Phase 3 plan.
+   */
+  private async triggerLeagueTableIfRoundOver(
+    fixture: NonNullable<
+      Awaited<ReturnType<MatchEventsService['getFixtureWithTeams']>>
+    >,
+  ): Promise<void> {
+    const dayStart = startOfDay(fixture.kickoffAt);
+    const dayEnd = endOfDay(fixture.kickoffAt);
+
+    const stillPending = await this.prisma.fixture.count({
+      where: {
+        competitionId: fixture.competitionId,
+        kickoffAt: { gte: dayStart, lte: dayEnd },
+        status: { in: ['SCHEDULED', 'LIVE'] },
+      },
+    });
+
+    if (stillPending > 0) {
+      return;
+    }
+
+    const table = await this.standingsService
+      .getTable(fixture.competitionId)
+      .catch(() => []);
+    if (table.length === 0) {
+      return;
+    }
+
+    await this.graphicsService.enqueue({
+      template: 'LEAGUE_TABLE',
+      competitionId: fixture.competitionId,
+      subjectType: 'COMPETITION',
+      subjectId: fixture.competitionId,
+      data: {
+        competitionName: fixture.competition.name,
+        roundLabel: `As of ${fixture.kickoffAt.toDateString()}`,
+        rows: table.slice(0, 10).map((row) => ({
+          position: row.position,
+          teamName: row.teamName,
+          played: row.played,
+          points: row.points,
+          goalDifference: row.goalDifference,
+        })),
+      },
+    });
+  }
+
+  /**
+   * "Season summary — final matchday" (brief §4). Read as "no fixtures
+   * remain SCHEDULED/LIVE anywhere in this competition" — same reasoning
+   * as triggerLeagueTableIfRoundOver above.
+   */
+  private async triggerSeasonSummaryIfSeasonOver(
+    fixture: NonNullable<
+      Awaited<ReturnType<MatchEventsService['getFixtureWithTeams']>>
+    >,
+  ): Promise<void> {
+    const remaining = await this.prisma.fixture.count({
+      where: {
+        competitionId: fixture.competitionId,
+        status: { in: ['SCHEDULED', 'LIVE'] },
+      },
+    });
+
+    if (remaining > 0) {
+      return;
+    }
+
+    const table = await this.standingsService
+      .getTable(fixture.competitionId)
+      .catch(() => []);
+    const champion = table[0] ?? null;
+
+    const finishedGoalEvents = await this.prisma.matchEvent.findMany({
+      where: {
+        type: { in: ['GOAL', 'PENALTY_SCORED'] },
+        fixture: { competitionId: fixture.competitionId, status: 'FINISHED' },
+      },
+      include: { player: true },
+    });
+    const topScorers = aggregateTopScorers(
+      finishedGoalEvents.map((event) => ({
+        fixtureId: event.fixtureId,
+        type: event.type,
+        playerId: event.playerId,
+        player: event.player,
+        assistPlayerId: null,
+        assistPlayer: null,
+      })),
+    );
+    const topScorer = topScorers[0] ?? null;
+
+    const totalMatches = await this.prisma.fixture.count({
+      where: { competitionId: fixture.competitionId, status: 'FINISHED' },
+    });
+
+    await this.graphicsService.enqueue({
+      template: 'SEASON_SUMMARY',
+      competitionId: fixture.competitionId,
+      subjectType: 'COMPETITION',
+      subjectId: fixture.competitionId,
+      data: {
+        competitionName: fixture.competition.name,
+        season: fixture.competition.season,
+        championTeamName: champion?.teamName ?? null,
+        topScorerName: topScorer?.playerName ?? null,
+        topScorerGoals: topScorer?.count ?? null,
+        totalMatches,
+        totalGoals: finishedGoalEvents.length,
+      },
+    });
+  }
+
+  private async getFixtureWithTeams(fixtureId: string) {
+    return this.prisma.fixture.findUnique({
+      where: { id: fixtureId },
+      include: { homeTeam: true, awayTeam: true, competition: true },
+    });
   }
 
   /**

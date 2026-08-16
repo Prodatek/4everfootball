@@ -36,6 +36,25 @@ export class S3StorageService {
     this.publicUrl = this.config.get<string>('S3_PUBLIC_URL') as string;
   }
 
+  // Server-rendered assets (Phase 3 graphics) upload directly here rather
+  // than through the presigned-URL flow above, which exists for
+  // client-driven uploads where the browser/app PUTs the bytes itself.
+  async putObject(
+    key: string,
+    body: Buffer,
+    contentType: string,
+  ): Promise<void> {
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        Body: body,
+        ContentType: contentType,
+        CacheControl: 'public, max-age=31536000, immutable',
+      }),
+    );
+  }
+
   async createUploadUrl(key: string, contentType: string): Promise<string> {
     const command = new PutObjectCommand({
       Bucket: this.bucket,

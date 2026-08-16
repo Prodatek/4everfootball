@@ -27,6 +27,9 @@ import { OrganisationsModule } from './modules/organisations/organisations.modul
 import { PaymentsModule } from './modules/payments/payments.module';
 import { PlayerRegistrationsModule } from './modules/player-registrations/player-registrations.module';
 import { InvoicesModule } from './modules/invoices/invoices.module';
+import { MediaPacksModule } from './modules/media-packs/media-packs.module';
+import { GraphicsModule } from './modules/graphics/graphics.module';
+import { GraphicsTriggersModule } from './modules/graphics/graphics-triggers.module';
 
 @Module({
   imports: [
@@ -52,6 +55,9 @@ import { InvoicesModule } from './modules/invoices/invoices.module';
     PaymentsModule,
     PlayerRegistrationsModule,
     InvoicesModule,
+    MediaPacksModule,
+    GraphicsModule,
+    GraphicsTriggersModule,
   ],
   controllers: [HealthController],
   providers: [

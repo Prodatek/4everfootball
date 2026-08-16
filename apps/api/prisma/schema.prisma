@@ -70,11 +70,12 @@ model Organisation {
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
-  members      OrganisationMember[]
-  competitions Competition[]
-  teams        Team[]
-  payments     Payment[]
-  invoices     Invoice[]
+  members               OrganisationMember[]
+  competitions          Competition[]
+  teams                 Team[]
+  payments              Payment[]
+  invoices              Invoice[]
+  mediaPackEntitlements MediaPackEntitlement[]
 
   @@map("organisations")
 }
@@ -218,6 +219,14 @@ model Competition {
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
 
+  // Media engine branding (Phase 3, brief §4: "configurable per competition
+  // and applied automatically"). Nullable — unset competitions render
+  // graphics with the platform's own Floodlight palette as a default rather
+  // than a blank/broken template.
+  primaryColor   String?
+  secondaryColor String?
+  sponsorLogoUrl String?
+
   // Every competition belongs to an organisation now (was a bare global
   // entity before Phase 2) — NOT NULL because the migration backfills every
   // existing row to a seeded "legacy" organisation before this constraint is
@@ -239,9 +248,11 @@ model Competition {
   registrationOpensAt  DateTime?
   registrationClosesAt DateTime?
 
-  entries             CompetitionEntry[]
-  fixtures            Fixture[]
-  playerRegistrations PlayerRegistration[]
+  entries               CompetitionEntry[]
+  fixtures              Fixture[]
+  playerRegistrations   PlayerRegistration[]
+  graphics              Graphic[]
+  mediaPackEntitlements MediaPackEntitlement[]
 
   @@index([country])
   @@index([season])
@@ -551,7 +562,8 @@ model Payment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  playerRegistrations PlayerRegistration[]
+  playerRegistrations  PlayerRegistration[]
+  mediaPackEntitlement MediaPackEntitlement?
 
   @@index([organisationId])
   @@index([status])
@@ -635,4 +647,97 @@ model InvoiceLine {
 
   @@index([invoiceId])
   @@map("invoice_lines")
+}
+
+// ===== Phase 3: the media engine (MONETISATION_BUILD_BRIEF.md §4) =====
+
+enum GraphicTemplate {
+  FULL_TIME_RESULT
+  GOAL_ALERT
+  MATCHDAY_FIXTURES
+  LEAGUE_TABLE
+  TOP_SCORERS
+  PLAYER_OF_WEEK
+  PLAYER_PASSPORT
+  HEAD_TO_HEAD
+  MILESTONE
+  SEASON_SUMMARY
+}
+
+enum GraphicFormat {
+  SQUARE // 1080x1080
+  PORTRAIT // 1080x1350
+  STORY // 1080x1920
+}
+
+enum GraphicStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
+}
+
+// One row per rendered image, across all 10 templates — deliberately a
+// single polymorphic table rather than one per template, since the
+// enqueue -> render -> upload -> serve lifecycle is identical for all of
+// them and a GraphicsWorkerService needs one queue to poll, not ten.
+model Graphic {
+  id       String          @id @default(uuid())
+  template GraphicTemplate
+  format   GraphicFormat
+  status   GraphicStatus   @default(PENDING)
+
+  // Scopes the graphic to a competition for branding (colours/sponsor
+  // logo) and entitlement checks. Nullable: a PLAYER_PASSPORT is ungated
+  // and a player can be registered to zero competitions.
+  competitionId String?
+  competition   Competition? @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+
+  // What data-domain entity this graphic is actually about — 'FIXTURE' |
+  // 'PLAYER' | 'COMPETITION' | 'TEAM'. Not a typed FK per subject kind for
+  // the same reason Payment.subjectType/subjectId isn't: the closed set of
+  // template kinds already enumerates what a graphic can be about.
+  subjectType String
+  subjectId   String
+
+  // Every field the renderer needs, captured at enqueue time. Makes
+  // rendering a pure function of this JSON blob — no DB access mid-render,
+  // deterministic, replayable, and unit-testable without a database.
+  data Json
+
+  mediaKey     String?
+  publicUrl    String?
+  attempts     Int       @default(0)
+  errorMessage String?
+  createdAt    DateTime  @default(now())
+  readyAt      DateTime?
+
+  @@index([status])
+  @@index([subjectType, subjectId])
+  @@index([competitionId])
+  @@map("graphics")
+}
+
+// Grants access to the 9 gated templates (everything except
+// PLAYER_PASSPORT, which is deliberately ungated — brief §4: "it is the
+// acquisition loop"). competitionId null = the ADD_ONS.MEDIA_PACK_PER_CLUB
+// SKU, granting every competition under the organisation; competitionId set
+// = the ADD_ONS.MEDIA_PACK_COMPETITION SKU, scoped to one competition.
+model MediaPackEntitlement {
+  id             String       @id @default(uuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  competitionId  String?
+  competition    Competition? @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+
+  // Restrict, not Cascade/SetNull: the payment that granted this is the
+  // audit trail for why the organisation has it. Unique: fulfilPayment()
+  // is idempotent (Phase 2 precedent) — replaying the same payment must
+  // never create a second entitlement row.
+  sourcePaymentId String   @unique
+  sourcePayment   Payment  @relation(fields: [sourcePaymentId], references: [id], onDelete: Restrict)
+  grantedAt       DateTime @default(now())
+
+  @@index([organisationId])
+  @@map("media_pack_entitlements")
 }

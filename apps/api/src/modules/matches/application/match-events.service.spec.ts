@@ -7,6 +7,8 @@ import { FixturesService } from '../../fixtures/application/fixtures.service';
 import { PlayersService } from '../../players/application/players.service';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { MatchEventsGateway } from '../infrastructure/match-events.gateway';
+import { GraphicsService } from '../../graphics/application/graphics.service';
+import { StandingsService } from '../../standings/application/standings.service';
 import { seedHash } from '../domain/event-hash-chain';
 
 const FIXTURE_ID = 'fixture-1';
@@ -53,7 +55,13 @@ describe('MatchEventsService', () => {
   let repository: jest.Mocked<MatchEventRepository>;
   let fixturesService: jest.Mocked<FixturesService>;
   let playersService: jest.Mocked<PlayersService>;
-  let prisma: { playerRegistration: { findUnique: jest.Mock } };
+  let graphicsService: jest.Mocked<GraphicsService>;
+  let standingsService: jest.Mocked<StandingsService>;
+  let prisma: {
+    playerRegistration: { findUnique: jest.Mock };
+    fixture: { findUnique: jest.Mock; count: jest.Mock };
+    matchEvent: { count: jest.Mock; findMany: jest.Mock };
+  };
 
   beforeEach(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -89,6 +97,17 @@ describe('MatchEventsService', () => {
             playerRegistration: {
               findUnique: jest.fn().mockResolvedValue(null),
             },
+            // Defaults to a no-op for the graphics hooks (fixture not
+            // found -> triggerGraphicsForEvent returns early) so existing
+            // tests that don't care about graphics stay unaffected.
+            fixture: {
+              findUnique: jest.fn().mockResolvedValue(null),
+              count: jest.fn().mockResolvedValue(0),
+            },
+            matchEvent: {
+              count: jest.fn().mockResolvedValue(0),
+              findMany: jest.fn().mockResolvedValue([]),
+            },
           },
         },
         {
@@ -99,6 +118,14 @@ describe('MatchEventsService', () => {
             broadcastState: jest.fn(),
           },
         },
+        {
+          provide: GraphicsService,
+          useValue: { enqueue: jest.fn().mockResolvedValue(null) },
+        },
+        {
+          provide: StandingsService,
+          useValue: { getTable: jest.fn().mockResolvedValue([]) },
+        },
       ],
     }).compile();
 
@@ -106,6 +133,8 @@ describe('MatchEventsService', () => {
     repository = moduleRef.get(MATCH_EVENT_REPOSITORY);
     fixturesService = moduleRef.get(FixturesService);
     playersService = moduleRef.get(PlayersService);
+    graphicsService = moduleRef.get(GraphicsService);
+    standingsService = moduleRef.get(StandingsService);
     prisma = moduleRef.get(PrismaService);
   });
 
@@ -246,6 +275,216 @@ describe('MatchEventsService', () => {
       expect.objectContaining({ status: 'FINISHED' }),
       expect.anything(),
     );
+  });
+
+  describe('graphics hooks', () => {
+    function fakeFixtureWithTeams(
+      overrides: Partial<Record<string, unknown>> = {},
+    ) {
+      return {
+        id: FIXTURE_ID,
+        competitionId: COMPETITION_ID,
+        homeTeamId: HOME_TEAM_ID,
+        awayTeamId: AWAY_TEAM_ID,
+        homeScore: 2,
+        awayScore: 1,
+        venueName: 'Onikan Stadium',
+        kickoffAt: new Date('2026-08-16T16:00:00Z'),
+        homeTeam: { id: HOME_TEAM_ID, name: 'Home FC', logoUrl: null },
+        awayTeam: { id: AWAY_TEAM_ID, name: 'Away FC', logoUrl: null },
+        competition: { id: COMPETITION_ID, name: 'Lagos Cup', season: '2026' },
+        ...overrides,
+      };
+    }
+
+    it('enqueues a GOAL_ALERT with the scorer, minute, and current score', async () => {
+      prisma.fixture.findUnique.mockResolvedValue(fakeFixtureWithTeams());
+      playersService.findById.mockResolvedValue({
+        id: 'player-1',
+        teamId: HOME_TEAM_ID,
+        firstName: 'Chuka',
+        lastName: 'Obi',
+      } as never);
+      repository.create.mockResolvedValue(
+        fakeEvent({ playerId: 'player-1' }) as never,
+      );
+
+      await service.recordEvent(
+        FIXTURE_ID,
+        {
+          ...baseDto,
+          playerId: 'player-1',
+          teamId: HOME_TEAM_ID,
+          minute: 63,
+        } as never,
+        RECORDED_BY,
+      );
+
+      expect(graphicsService.enqueue).toHaveBeenCalledWith(
+        expect.objectContaining({
+          template: 'GOAL_ALERT',
+          competitionId: COMPETITION_ID,
+          data: expect.objectContaining({
+            scorerName: 'Chuka Obi',
+            scoringTeamName: 'Home FC',
+            homeScore: 2,
+            awayScore: 1,
+          }),
+        }),
+      );
+    });
+
+    it("enqueues a MILESTONE graphic when the scorer's goal tally lands exactly on a threshold", async () => {
+      prisma.fixture.findUnique.mockResolvedValue(fakeFixtureWithTeams());
+      prisma.matchEvent.count.mockResolvedValue(100);
+      playersService.findById.mockResolvedValue({
+        id: 'player-1',
+        teamId: HOME_TEAM_ID,
+        firstName: 'Chuka',
+        lastName: 'Obi',
+      } as never);
+      repository.create.mockResolvedValue(
+        fakeEvent({ playerId: 'player-1' }) as never,
+      );
+
+      await service.recordEvent(
+        FIXTURE_ID,
+        { ...baseDto, playerId: 'player-1', teamId: HOME_TEAM_ID } as never,
+        RECORDED_BY,
+      );
+
+      expect(graphicsService.enqueue).toHaveBeenCalledWith(
+        expect.objectContaining({
+          template: 'MILESTONE',
+          subjectId: 'player-1',
+        }),
+      );
+    });
+
+    it('does not enqueue a MILESTONE graphic when the goal tally is not on a threshold', async () => {
+      prisma.fixture.findUnique.mockResolvedValue(fakeFixtureWithTeams());
+      prisma.matchEvent.count.mockResolvedValue(101);
+      playersService.findById.mockResolvedValue({
+        id: 'player-1',
+        teamId: HOME_TEAM_ID,
+        firstName: 'Chuka',
+        lastName: 'Obi',
+      } as never);
+      repository.create.mockResolvedValue(
+        fakeEvent({ playerId: 'player-1' }) as never,
+      );
+
+      await service.recordEvent(
+        FIXTURE_ID,
+        { ...baseDto, playerId: 'player-1', teamId: HOME_TEAM_ID } as never,
+        RECORDED_BY,
+      );
+
+      expect(graphicsService.enqueue).not.toHaveBeenCalledWith(
+        expect.objectContaining({ template: 'MILESTONE' }),
+      );
+    });
+
+    it('enqueues a FULL_TIME_RESULT graphic on a FULL_TIME event', async () => {
+      prisma.fixture.findUnique.mockResolvedValue(fakeFixtureWithTeams());
+      prisma.fixture.count.mockResolvedValue(1); // other fixtures still pending -> no LEAGUE_TABLE/SEASON_SUMMARY
+      repository.create.mockResolvedValue(
+        fakeEvent({ type: 'FULL_TIME' }) as never,
+      );
+      repository.findByFixtureId.mockResolvedValue([] as never);
+
+      await service.recordEvent(
+        FIXTURE_ID,
+        { ...baseDto, type: 'FULL_TIME' } as never,
+        RECORDED_BY,
+      );
+
+      expect(graphicsService.enqueue).toHaveBeenCalledWith(
+        expect.objectContaining({
+          template: 'FULL_TIME_RESULT',
+          data: expect.objectContaining({
+            homeTeamName: 'Home FC',
+            awayTeamName: 'Away FC',
+          }),
+        }),
+      );
+      expect(graphicsService.enqueue).not.toHaveBeenCalledWith(
+        expect.objectContaining({ template: 'LEAGUE_TABLE' }),
+      );
+    });
+
+    it('enqueues a LEAGUE_TABLE graphic when no fixtures remain scheduled/live that day', async () => {
+      prisma.fixture.findUnique.mockResolvedValue(fakeFixtureWithTeams());
+      prisma.fixture.count.mockResolvedValueOnce(0).mockResolvedValueOnce(1); // day check=0, season check=1 (season not over)
+      repository.create.mockResolvedValue(
+        fakeEvent({ type: 'FULL_TIME' }) as never,
+      );
+      repository.findByFixtureId.mockResolvedValue([] as never);
+
+      standingsService.getTable.mockResolvedValue([
+        {
+          position: 1,
+          teamName: 'Home FC',
+          played: 10,
+          points: 25,
+          goalDifference: 12,
+        },
+      ] as never);
+
+      await service.recordEvent(
+        FIXTURE_ID,
+        { ...baseDto, type: 'FULL_TIME' } as never,
+        RECORDED_BY,
+      );
+
+      expect(graphicsService.enqueue).toHaveBeenCalledWith(
+        expect.objectContaining({ template: 'LEAGUE_TABLE' }),
+      );
+      expect(graphicsService.enqueue).not.toHaveBeenCalledWith(
+        expect.objectContaining({ template: 'SEASON_SUMMARY' }),
+      );
+    });
+
+    it('enqueues a SEASON_SUMMARY graphic when no fixtures remain scheduled/live anywhere in the competition', async () => {
+      prisma.fixture.findUnique.mockResolvedValue(fakeFixtureWithTeams());
+      prisma.fixture.count.mockResolvedValue(0); // both the day check and the season check find nothing pending
+      repository.create.mockResolvedValue(
+        fakeEvent({ type: 'FULL_TIME' }) as never,
+      );
+      repository.findByFixtureId.mockResolvedValue([] as never);
+
+      standingsService.getTable.mockResolvedValue([
+        {
+          position: 1,
+          teamName: 'Home FC',
+          played: 10,
+          points: 25,
+          goalDifference: 12,
+        },
+      ] as never);
+
+      await service.recordEvent(
+        FIXTURE_ID,
+        { ...baseDto, type: 'FULL_TIME' } as never,
+        RECORDED_BY,
+      );
+
+      expect(graphicsService.enqueue).toHaveBeenCalledWith(
+        expect.objectContaining({
+          template: 'SEASON_SUMMARY',
+          data: expect.objectContaining({ championTeamName: 'Home FC' }),
+        }),
+      );
+    });
+
+    it('never fails recordEvent when the graphics trigger throws', async () => {
+      prisma.fixture.findUnique.mockRejectedValue(new Error('boom'));
+      repository.create.mockResolvedValue(fakeEvent() as never);
+
+      await expect(
+        service.recordEvent(FIXTURE_ID, baseDto as never, RECORDED_BY),
+      ).resolves.toBeDefined();
+    });
   });
 
   describe('hash chaining on insert', () => {

@@ -34,6 +34,11 @@ export interface CreateCompetitionInput {
   endDate?: Date;
   logoUrl?: string;
   organisationId: string;
+  // Media engine branding (Phase 3) — applied automatically to every
+  // graphic generated for this competition; see GraphicsModule.
+  primaryColor?: string;
+  secondaryColor?: string;
+  sponsorLogoUrl?: string;
 }
 
 export type UpdateCompetitionInput = Partial<
