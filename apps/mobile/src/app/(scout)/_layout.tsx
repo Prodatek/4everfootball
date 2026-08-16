@@ -1,5 +1,6 @@
 import { Redirect, Stack } from "expo-router";
 import { useAuth } from "@/features/auth/auth-context";
+import { fourthOfficial as fo } from "@/theme/fourth-official";
 
 // The mirror image of (public)/_layout.tsx's guard: this whole group is
 // off-limits to anyone without a privileged (SCOUT/ADMIN/SUPER_ADMIN)
@@ -13,10 +14,17 @@ export default function ScoutLayout() {
   }
 
   return (
-    <Stack>
-      <Stack.Screen name="index" options={{ title: "Pick a fixture" }} />
-      <Stack.Screen name="fixtures/[id]" options={{ title: "Record events" }} />
-      <Stack.Screen name="profile" options={{ title: "Profile" }} />
+    <Stack
+      screenOptions={{
+        headerStyle: { backgroundColor: fo.color.ink },
+        headerTintColor: "#fff",
+        headerTitleStyle: { fontFamily: fo.font.displayBold, fontSize: 15 },
+        contentStyle: { backgroundColor: fo.color.bg },
+      }}
+    >
+      <Stack.Screen name="index" options={{ title: "PICK A FIXTURE" }} />
+      <Stack.Screen name="fixtures/[id]" options={{ title: "RECORD EVENTS" }} />
+      <Stack.Screen name="profile" options={{ title: "PROFILE" }} />
     </Stack>
   );
 }

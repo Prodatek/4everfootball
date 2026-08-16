@@ -1,5 +1,6 @@
 import { Redirect, Tabs } from "expo-router";
 import { useAuth } from "@/features/auth/auth-context";
+import { floodlight as fl } from "@/theme/floodlight";
 
 // A privileged (SCOUT/ADMIN/SUPER_ADMIN) session means the whole app UI is
 // the scout tool, not the public browsing tabs — this is the other half of
@@ -15,7 +16,15 @@ export default function PublicLayout() {
   // each tab's _layout.tsx) — the Tabs navigator itself stays header-free so
   // the two don't double up.
   return (
-    <Tabs screenOptions={{ headerShown: false }}>
+    <Tabs
+      screenOptions={{
+        headerShown: false,
+        tabBarStyle: { backgroundColor: fl.color.surface, borderTopColor: fl.color.line },
+        tabBarActiveTintColor: fl.color.brand,
+        tabBarInactiveTintColor: fl.color.inkDim,
+        tabBarLabelStyle: { fontFamily: fl.font.bodySemibold, fontSize: 10.5 },
+      }}
+    >
       <Tabs.Screen name="fixtures" options={{ title: "Fixtures" }} />
       <Tabs.Screen name="live" options={{ title: "Live" }} />
       <Tabs.Screen name="explore" options={{ title: "Explore" }} />

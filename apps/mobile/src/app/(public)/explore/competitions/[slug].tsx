@@ -5,6 +5,7 @@ import { fetchCompetitionBySlug } from "@/features/competitions/api";
 import { fetchStandings } from "@/features/standings/api";
 import { fetchTopAssists, fetchTopScorers } from "@/features/stats/api";
 import { ScreenState } from "@/components/list-row";
+import { floodlight as fl } from "@/theme/floodlight";
 
 export default function CompetitionDetailScreen() {
   const { slug } = useLocalSearchParams<{ slug: string }>();
@@ -46,7 +47,7 @@ export default function CompetitionDetailScreen() {
         </Text>
       </View>
 
-      <Text style={styles.sectionTitle}>Table</Text>
+      <Text style={styles.sectionTitle}>TABLE</Text>
       <View style={styles.table}>
         {(standings ?? []).map((row) => (
           <View key={row.teamId} style={styles.tableRow}>
@@ -62,10 +63,10 @@ export default function CompetitionDetailScreen() {
         {(standings ?? []).length === 0 && <ScreenState>No standings yet.</ScreenState>}
       </View>
 
-      <Text style={styles.sectionTitle}>Top scorers</Text>
+      <Text style={styles.sectionTitle}>TOP SCORERS</Text>
       <LeaderboardList rows={topScorers} />
 
-      <Text style={styles.sectionTitle}>Top assists</Text>
+      <Text style={styles.sectionTitle}>TOP ASSISTS</Text>
       <LeaderboardList rows={topAssists} />
     </ScrollView>
   );
@@ -90,34 +91,34 @@ function LeaderboardList({ rows }: { rows?: { playerId: string; playerName: stri
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
-  header: { padding: 16, gap: 4, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#e5e7eb" },
-  name: { fontSize: 22, fontWeight: "700" },
-  meta: { fontSize: 14, color: "#6b7280" },
-  sectionTitle: { fontSize: 16, fontWeight: "700", padding: 16, paddingBottom: 8 },
-  table: { paddingHorizontal: 16 },
+  container: { flex: 1, backgroundColor: fl.color.bg },
+  header: { padding: 20, gap: 4, borderBottomWidth: 1, borderBottomColor: fl.color.line },
+  name: { fontSize: 24, fontFamily: fl.font.display, color: fl.color.ink, textTransform: "uppercase" },
+  meta: { fontSize: 13, color: fl.color.inkDim, fontFamily: fl.font.body },
+  sectionTitle: { fontSize: 13, fontFamily: fl.font.bodySemibold, color: fl.color.ink, letterSpacing: 0.5, padding: 20, paddingBottom: 8 },
+  table: { paddingHorizontal: 20 },
   tableRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    paddingVertical: 8,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#f3f4f6",
+    paddingVertical: 9,
+    borderBottomWidth: 1,
+    borderBottomColor: fl.color.line,
   },
-  tablePos: { width: 20, fontSize: 13, color: "#6b7280" },
-  tableTeam: { flex: 1, fontSize: 14 },
-  tableStat: { width: 30, textAlign: "right", fontSize: 13, color: "#6b7280" },
-  tablePoints: { width: 30, textAlign: "right", fontSize: 14, fontWeight: "700" },
-  leaderboard: { paddingHorizontal: 16, marginBottom: 8 },
+  tablePos: { width: 20, fontSize: 12.5, color: fl.color.inkDim, fontFamily: fl.font.mono },
+  tableTeam: { flex: 1, fontSize: 13.5, color: fl.color.ink, fontFamily: fl.font.body },
+  tableStat: { width: 30, textAlign: "right", fontSize: 12.5, color: fl.color.inkDim, fontFamily: fl.font.mono },
+  tablePoints: { width: 32, textAlign: "right", fontSize: 14, fontFamily: fl.font.mono, fontWeight: "700", color: fl.color.brand },
+  leaderboard: { paddingHorizontal: 20, marginBottom: 8 },
   leaderRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    paddingVertical: 8,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#f3f4f6",
+    paddingVertical: 9,
+    borderBottomWidth: 1,
+    borderBottomColor: fl.color.line,
   },
-  leaderRank: { width: 20, fontSize: 13, color: "#6b7280" },
-  leaderName: { flex: 1, fontSize: 14 },
-  leaderCount: { fontSize: 14, fontWeight: "700" },
+  leaderRank: { width: 20, fontSize: 12.5, color: fl.color.inkDim, fontFamily: fl.font.mono },
+  leaderName: { flex: 1, fontSize: 13.5, color: fl.color.ink, fontFamily: fl.font.body },
+  leaderCount: { fontSize: 14, fontFamily: fl.font.mono, fontWeight: "700", color: fl.color.ink },
 });

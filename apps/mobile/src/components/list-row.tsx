@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { floodlight as fl } from "@/theme/floodlight";
 
 export function ListRow({
   title,
@@ -11,7 +12,7 @@ export function ListRow({
   onPress: () => void;
 }) {
   return (
-    <Pressable style={styles.row} onPress={onPress}>
+    <Pressable style={({ pressed }) => [styles.row, pressed && styles.rowPressed]} onPress={onPress}>
       <View style={styles.text}>
         <Text style={styles.title}>{title}</Text>
         {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
@@ -31,13 +32,15 @@ export function ScreenState({ children }: { children: ReactNode }) {
 const styles = StyleSheet.create({
   row: {
     padding: 14,
+    backgroundColor: fl.color.surface,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
-    borderRadius: 8,
+    borderColor: fl.color.line,
+    borderRadius: fl.radius.md,
   },
-  text: { gap: 2 },
-  title: { fontSize: 15, fontWeight: "600" },
-  subtitle: { fontSize: 13, color: "#6b7280" },
+  rowPressed: { backgroundColor: fl.color.surfaceElevated },
+  text: { gap: 3 },
+  title: { fontSize: 15, fontFamily: fl.font.bodySemibold, color: fl.color.ink },
+  subtitle: { fontSize: 12.5, color: fl.color.inkDim, fontFamily: fl.font.body },
   state: { padding: 32, alignItems: "center" },
-  stateText: { color: "#6b7280" },
+  stateText: { color: fl.color.inkDim, fontFamily: fl.font.body },
 });

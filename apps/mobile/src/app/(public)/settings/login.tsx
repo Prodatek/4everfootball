@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useAuth } from "@/features/auth/auth-context";
+import { floodlight as fl } from "@/theme/floodlight";
 
 export default function LoginScreen() {
   const { login } = useAuth();
@@ -25,13 +26,14 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Scout Sign In</Text>
+      <Text style={styles.title}>SCOUT SIGN IN</Text>
       <Text style={styles.subtitle}>For authorized scouts and admins only.</Text>
 
       <View style={styles.field}>
-        <Text style={styles.label}>Email</Text>
+        <Text style={styles.label}>EMAIL</Text>
         <TextInput
           style={styles.input}
+          placeholderTextColor={fl.color.inkDim}
           autoCapitalize="none"
           autoComplete="email"
           keyboardType="email-address"
@@ -41,9 +43,10 @@ export default function LoginScreen() {
       </View>
 
       <View style={styles.field}>
-        <Text style={styles.label}>Password</Text>
+        <Text style={styles.label}>PASSWORD</Text>
         <TextInput
           style={styles.input}
+          placeholderTextColor={fl.color.inkDim}
           secureTextEntry
           autoCapitalize="none"
           value={password}
@@ -54,14 +57,18 @@ export default function LoginScreen() {
       {error && <Text style={styles.error}>{error}</Text>}
 
       <Pressable
-        style={[styles.button, isSubmitting && styles.buttonDisabled]}
+        style={({ pressed }) => [
+          styles.button,
+          (isSubmitting || pressed) && styles.buttonPressed,
+          isSubmitting && styles.buttonDisabled,
+        ]}
         disabled={isSubmitting || !email || !password}
         onPress={handleSubmit}
       >
         {isSubmitting ? (
-          <ActivityIndicator color="#fff" />
+          <ActivityIndicator color={fl.color.brandInk} />
         ) : (
-          <Text style={styles.buttonText}>Sign in</Text>
+          <Text style={styles.buttonText}>SIGN IN</Text>
         )}
       </Pressable>
     </View>
@@ -69,26 +76,30 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, gap: 16, backgroundColor: "#fff" },
-  title: { fontSize: 22, fontWeight: "700" },
-  subtitle: { fontSize: 14, color: "#6b7280", marginBottom: 8 },
+  container: { flex: 1, padding: 24, gap: 16, backgroundColor: fl.color.bg },
+  title: { fontSize: 22, fontFamily: fl.font.display, color: fl.color.ink, letterSpacing: 0.5 },
+  subtitle: { fontSize: 14, color: fl.color.inkDim, marginBottom: 8, fontFamily: fl.font.body },
   field: { gap: 6 },
-  label: { fontSize: 13, fontWeight: "600", color: "#374151" },
+  label: { fontSize: 11.5, fontFamily: fl.font.bodySemibold, color: fl.color.inkDim, letterSpacing: 0.4 },
   input: {
     borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 8,
-    padding: 12,
+    borderColor: fl.color.line,
+    backgroundColor: fl.color.surface,
+    borderRadius: fl.radius.md,
+    padding: 13,
     fontSize: 16,
+    color: fl.color.ink,
+    fontFamily: fl.font.body,
   },
-  error: { color: "#dc2626", fontSize: 13 },
+  error: { color: fl.color.danger, fontSize: 13, fontFamily: fl.font.body },
   button: {
     marginTop: 8,
-    padding: 14,
-    borderRadius: 8,
-    backgroundColor: "#111827",
+    padding: 15,
+    borderRadius: fl.radius.md,
+    backgroundColor: fl.color.brand,
     alignItems: "center",
   },
+  buttonPressed: { opacity: 0.85 },
   buttonDisabled: { opacity: 0.5 },
-  buttonText: { color: "#fff", fontWeight: "700" },
+  buttonText: { color: fl.color.brandInk, fontFamily: fl.font.bodySemibold, letterSpacing: 0.5, fontSize: 13.5 },
 });

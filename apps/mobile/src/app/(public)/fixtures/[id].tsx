@@ -5,6 +5,7 @@ import { fetchFixtureById } from "@/features/fixtures/api";
 import { useLiveMatch } from "@/features/matches/use-live-match";
 import { MatchTimeline } from "@/features/matches/match-timeline";
 import { ScreenState } from "@/components/list-row";
+import { floodlight as fl } from "@/theme/floodlight";
 
 export default function FixtureDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -33,28 +34,42 @@ export default function FixtureDetailScreen() {
           <Text style={styles.score}>{homeScore ?? "-"} : {awayScore ?? "-"}</Text>
           <Text style={styles.team}>{fixture.awayTeam.name}</Text>
         </View>
-        <Text style={styles.meta}>
-          {status === "LIVE" ? "LIVE" : new Date(fixture.kickoffAt).toLocaleString()}
-          {fixture.venueName ? ` · ${fixture.venueName}` : ""}
-        </Text>
+        {status === "LIVE" ? (
+          <View style={styles.livePill}>
+            <Text style={styles.liveText}>LIVE</Text>
+          </View>
+        ) : (
+          <Text style={styles.meta}>
+            {new Date(fixture.kickoffAt).toLocaleString()}
+            {fixture.venueName ? ` · ${fixture.venueName}` : ""}
+          </Text>
+        )}
       </View>
 
       <View style={styles.timeline}>
-        <Text style={styles.sectionTitle}>Timeline</Text>
-        <MatchTimeline events={events} />
+        <Text style={styles.sectionTitle}>TIMELINE</Text>
+        <MatchTimeline events={events} theme="floodlight" />
       </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
-  header: { padding: 16, gap: 8, alignItems: "center", borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#e5e7eb" },
-  competition: { fontSize: 13, color: "#6b7280" },
-  matchup: { flexDirection: "row", alignItems: "center", gap: 12 },
-  team: { fontSize: 16, fontWeight: "700" },
-  score: { fontSize: 20, fontWeight: "800", fontVariant: ["tabular-nums"] },
-  meta: { fontSize: 13, color: "#6b7280" },
-  timeline: { padding: 16, gap: 8 },
-  sectionTitle: { fontSize: 16, fontWeight: "700" },
+  container: { flex: 1, backgroundColor: fl.color.bg },
+  header: {
+    padding: 20,
+    gap: 10,
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: fl.color.line,
+  },
+  competition: { fontSize: 11.5, color: fl.color.inkDim, fontFamily: fl.font.body, textTransform: "uppercase", letterSpacing: 0.4 },
+  matchup: { flexDirection: "row", alignItems: "center", gap: 14 },
+  team: { fontSize: 15, fontFamily: fl.font.bodySemibold, color: fl.color.ink },
+  score: { fontSize: 26, fontFamily: fl.font.mono, fontWeight: "700", color: fl.color.brand },
+  meta: { fontSize: 12.5, color: fl.color.inkDim, fontFamily: fl.font.body },
+  livePill: { backgroundColor: fl.color.live, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
+  liveText: { fontSize: 11, fontWeight: "800", color: "#052e18", fontFamily: fl.font.mono, letterSpacing: 0.4 },
+  timeline: { padding: 20, gap: 10 },
+  sectionTitle: { fontSize: 15, fontFamily: fl.font.display, color: fl.color.ink, letterSpacing: 0.3 },
 });

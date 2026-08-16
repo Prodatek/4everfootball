@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchFixtures } from "@/features/fixtures/api";
 import { FixtureRow } from "@/features/fixtures/fixture-row";
 import { ScreenState } from "@/components/list-row";
+import { floodlight as fl } from "@/theme/floodlight";
 
 export default function FixturesListScreen() {
   const router = useRouter();
@@ -14,9 +15,10 @@ export default function FixturesListScreen() {
 
   return (
     <FlatList
+      style={{ backgroundColor: fl.color.bg }}
       data={data?.data ?? []}
       keyExtractor={(fixture) => fixture.id}
-      contentContainerStyle={{ padding: 16, gap: 8 }}
+      contentContainerStyle={{ padding: 16, gap: 8, flexGrow: 1 }}
       ListEmptyComponent={
         <ScreenState>{isLoading ? "Loading fixtures..." : "No fixtures found."}</ScreenState>
       }

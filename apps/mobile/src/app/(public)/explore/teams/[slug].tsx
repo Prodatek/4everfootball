@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchTeamBySlug } from "@/features/teams/api";
 import { fetchPlayers } from "@/features/players/api";
 import { ScreenState } from "@/components/list-row";
+import { floodlight as fl } from "@/theme/floodlight";
 
 export default function TeamDetailScreen() {
   const { slug } = useLocalSearchParams<{ slug: string }>();
@@ -32,7 +33,7 @@ export default function TeamDetailScreen() {
         {team.foundedYear && <Text style={styles.meta}>Founded {team.foundedYear}</Text>}
       </View>
 
-      <Text style={styles.sectionTitle}>Squad</Text>
+      <Text style={styles.sectionTitle}>SQUAD</Text>
       <FlatList
         data={squad?.data ?? []}
         keyExtractor={(player) => player.id}
@@ -54,19 +55,19 @@ export default function TeamDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
-  header: { padding: 16, gap: 4, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#e5e7eb" },
-  name: { fontSize: 22, fontWeight: "700" },
-  meta: { fontSize: 14, color: "#6b7280" },
-  sectionTitle: { fontSize: 16, fontWeight: "700", padding: 16, paddingBottom: 8 },
+  container: { flex: 1, backgroundColor: fl.color.bg },
+  header: { padding: 20, gap: 4, borderBottomWidth: 1, borderBottomColor: fl.color.line },
+  name: { fontSize: 24, fontFamily: fl.font.display, color: fl.color.ink, textTransform: "uppercase" },
+  meta: { fontSize: 13, color: fl.color.inkDim, fontFamily: fl.font.body },
+  sectionTitle: { fontSize: 13, fontFamily: fl.font.bodySemibold, color: fl.color.ink, letterSpacing: 0.5, padding: 20, paddingBottom: 8 },
   playerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#f3f4f6",
+    paddingHorizontal: 20,
+    paddingVertical: 11,
+    borderBottomWidth: 1,
+    borderBottomColor: fl.color.line,
   },
-  playerName: { fontSize: 14 },
-  playerMeta: { fontSize: 13, color: "#6b7280" },
+  playerName: { fontSize: 14, color: fl.color.ink, fontFamily: fl.font.body },
+  playerMeta: { fontSize: 12.5, color: fl.color.inkDim, fontFamily: fl.font.mono },
 });

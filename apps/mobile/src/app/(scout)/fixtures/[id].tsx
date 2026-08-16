@@ -10,6 +10,20 @@ import { STUCK_AFTER_ATTEMPTS, useOfflineEventQueue } from "@/features/matches/o
 import { MatchTimeline } from "@/features/matches/match-timeline";
 import { MATCH_EVENT_LABELS } from "@/features/matches/event-labels";
 import { RecordEventSheet } from "@/features/matches/record-event-sheet";
+import { fourthOfficial as fo } from "@/theme/fourth-official";
+
+// Card-colored buttons are functional, not decorative — they're the actual
+// yellow/red card colors, reserved only for the events that record cards.
+function eventButtonStyle(type: MatchEventType) {
+  if (type === "GOAL" || type === "PENALTY_SCORED") return styles.eventButtonAccent;
+  if (type === "YELLOW_CARD") return styles.eventButtonYellow;
+  if (type === "RED_CARD") return styles.eventButtonRed;
+  return styles.eventButton;
+}
+function eventButtonTextStyle(type: MatchEventType) {
+  if (type === "GOAL" || type === "PENALTY_SCORED" || type === "RED_CARD") return styles.eventButtonTextLight;
+  return styles.eventButtonText;
+}
 
 export default function ScoutFixtureRecorder() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -63,18 +77,23 @@ export default function ScoutFixtureRecorder() {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.scoreCard}>
         <View style={styles.scoreRow}>
-          <Text style={styles.scoreText}>
-            {fixture.homeTeam.name} {homeScore ?? "-"} : {awayScore ?? "-"} {fixture.awayTeam.name}
+          <Text style={styles.scoreTeams} numberOfLines={2}>
+            {fixture.homeTeam.name} : {fixture.awayTeam.name}
           </Text>
+          <Text style={styles.scoreNums}>
+            {homeScore ?? "-"}&ndash;{awayScore ?? "-"}
+          </Text>
+        </View>
+        <View style={styles.statusRow}>
           <View style={[styles.badge, status === "LIVE" && styles.badgeLive]}>
             <Text style={styles.badgeText}>{status}</Text>
           </View>
+          {pendingCount > 0 && (
+            <Text style={styles.pendingText}>
+              {pendingCount} event{pendingCount === 1 ? "" : "s"} pending sync
+            </Text>
+          )}
         </View>
-        {pendingCount > 0 && (
-          <Text style={styles.pendingText}>
-            {pendingCount} event{pendingCount === 1 ? "" : "s"} pending sync...
-          </Text>
-        )}
       </View>
 
       <FlatList
@@ -85,7 +104,7 @@ export default function ScoutFixtureRecorder() {
         columnWrapperStyle={styles.gridRow}
         renderItem={({ item: type }) => (
           <Pressable
-            style={styles.eventButton}
+            style={eventButtonStyle(type)}
             onPress={() => {
               const minute =
                 status === "LIVE"
@@ -96,13 +115,13 @@ export default function ScoutFixtureRecorder() {
               setDialogKey((key) => key + 1);
             }}
           >
-            <Text style={styles.eventButtonText}>{MATCH_EVENT_LABELS[type]}</Text>
+            <Text style={eventButtonTextStyle(type)}>{MATCH_EVENT_LABELS[type].toUpperCase()}</Text>
           </Pressable>
         )}
       />
 
       <View style={styles.timelineCard}>
-        <Text style={styles.timelineTitle}>Timeline</Text>
+        <Text style={styles.timelineTitle}>TIMELINE</Text>
         {pendingEvents.length > 0 && (
           <View style={styles.pendingList}>
             {pendingEvents.map((item) => (
@@ -118,7 +137,7 @@ export default function ScoutFixtureRecorder() {
             ))}
           </View>
         )}
-        <MatchTimeline events={events} />
+        <MatchTimeline events={events} theme="fourth-official" />
       </View>
 
       <RecordEventSheet
@@ -139,41 +158,84 @@ export default function ScoutFixtureRecorder() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
-  content: { padding: 16, gap: 16 },
-  centered: { flex: 1, alignItems: "center", justifyContent: "center" },
-  loading: { color: "#6b7280" },
+  container: { flex: 1, backgroundColor: fo.color.bg },
+  content: { padding: 16, gap: 14 },
+  centered: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: fo.color.bg },
+  loading: { color: fo.color.inkDim },
   scoreCard: {
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-    borderRadius: 8,
+    backgroundColor: fo.color.ink,
+    borderRadius: fo.radius.md,
     padding: 16,
-    gap: 8,
+    gap: 10,
   },
-  scoreRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  scoreText: { fontSize: 15, fontWeight: "600", flexShrink: 1 },
-  badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: "#e5e7eb" },
-  badgeLive: { backgroundColor: "#111827" },
-  badgeText: { fontSize: 12, fontWeight: "700", color: "#111827" },
-  pendingText: { fontSize: 13, color: "#6b7280" },
-  gridRow: { gap: 8, marginBottom: 8 },
+  scoreRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12 },
+  scoreTeams: { flex: 1, fontSize: 13, fontFamily: fo.font.displayBold, color: "#fff", textTransform: "uppercase" },
+  scoreNums: { fontSize: 22, fontFamily: fo.font.mono, fontWeight: "700", color: fo.color.cardYellow },
+  statusRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.15)" },
+  badgeLive: { backgroundColor: fo.color.live },
+  badgeText: { fontSize: 10, fontFamily: fo.font.mono, fontWeight: "700", color: "#fff", letterSpacing: 0.3 },
+  pendingText: { fontSize: 11, color: "rgba(255,255,255,0.6)" },
+  gridRow: { gap: 6, marginBottom: 6 },
   eventButton: {
     flex: 1,
-    height: 64,
-    borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 8,
+    height: 46,
+    borderWidth: 2,
+    borderColor: fo.color.line,
+    backgroundColor: fo.color.surface,
+    borderRadius: fo.radius.sm,
     alignItems: "center",
     justifyContent: "center",
     padding: 4,
   },
-  eventButtonText: { fontSize: 13, textAlign: "center" },
-  timelineCard: { borderWidth: 1, borderColor: "#e5e7eb", borderRadius: 8, padding: 16, gap: 8 },
-  timelineTitle: { fontSize: 16, fontWeight: "700" },
+  eventButtonAccent: {
+    flex: 1,
+    height: 46,
+    borderWidth: 2,
+    borderColor: fo.color.accent,
+    backgroundColor: fo.color.accent,
+    borderRadius: fo.radius.sm,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 4,
+  },
+  eventButtonYellow: {
+    flex: 1,
+    height: 46,
+    borderWidth: 2,
+    borderColor: fo.color.cardYellow,
+    backgroundColor: fo.color.cardYellow,
+    borderRadius: fo.radius.sm,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 4,
+  },
+  eventButtonRed: {
+    flex: 1,
+    height: 46,
+    borderWidth: 2,
+    borderColor: fo.color.cardRed,
+    backgroundColor: fo.color.cardRed,
+    borderRadius: fo.radius.sm,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 4,
+  },
+  eventButtonText: { fontSize: 10, fontWeight: "800", textAlign: "center", color: fo.color.ink },
+  eventButtonTextLight: { fontSize: 10, fontWeight: "800", textAlign: "center", color: "#fff" },
+  timelineCard: {
+    backgroundColor: fo.color.surface,
+    borderWidth: 2,
+    borderColor: fo.color.line,
+    borderRadius: fo.radius.md,
+    padding: 16,
+    gap: 8,
+  },
+  timelineTitle: { fontSize: 13, fontFamily: fo.font.displayBold, color: fo.color.ink, letterSpacing: 0.3 },
   pendingList: { gap: 4, marginBottom: 8 },
   pendingRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
-  pendingMinute: { fontVariant: ["tabular-nums"], color: "#6b7280", fontSize: 13 },
-  pendingType: { color: "#6b7280", fontSize: 13 },
-  pendingSyncing: { fontStyle: "italic", color: "#6b7280", fontSize: 13 },
-  pendingError: { fontStyle: "italic", color: "#dc2626", fontSize: 13 },
+  pendingMinute: { fontVariant: ["tabular-nums"], color: fo.color.inkDim, fontSize: 13, fontFamily: fo.font.mono },
+  pendingType: { color: fo.color.inkDim, fontSize: 13 },
+  pendingSyncing: { fontStyle: "italic", color: fo.color.inkDim, fontSize: 13 },
+  pendingError: { fontStyle: "italic", color: fo.color.cardRed, fontSize: 13, fontWeight: "700" },
 });

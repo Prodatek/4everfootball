@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { Fixture } from "@4ef/shared";
 import { fetchFixtures } from "@/features/fixtures/api";
 import { useAuth } from "@/features/auth/auth-context";
+import { fourthOfficial as fo } from "@/theme/fourth-official";
 
 // Any SCOUT/ADMIN/SUPER_ADMIN account can record events for any fixture —
 // there's no per-scout assignment concept in the backend, so this is simply
@@ -28,9 +29,11 @@ export default function ScoutFixturePicker() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.welcome}>Signed in as {user?.displayName}</Text>
-        <Pressable onPress={logout}>
-          <Text style={styles.logout}>Log out</Text>
+        <Text style={styles.welcome}>
+          SIGNED IN AS <Text style={styles.welcomeName}>{user?.displayName}</Text>
+        </Text>
+        <Pressable onPress={logout} hitSlop={8}>
+          <Text style={styles.logout}>LOG OUT</Text>
         </Pressable>
       </View>
 
@@ -54,10 +57,16 @@ export default function ScoutFixturePicker() {
               <Text style={styles.matchup}>
                 {item.homeTeam.name} vs {item.awayTeam.name}
               </Text>
-              <Text style={styles.meta}>
-                {item.status === "LIVE" ? "LIVE now" : new Date(item.kickoffAt).toLocaleString()}
-              </Text>
+              <View style={styles.metaRow}>
+                <Text style={styles.comp}>{item.competition.name}</Text>
+                {item.status === "LIVE" ? (
+                  <Text style={styles.live}>LIVE</Text>
+                ) : (
+                  <Text style={styles.time}>{new Date(item.kickoffAt).toLocaleString()}</Text>
+                )}
+              </View>
             </View>
+            <View style={styles.chevron} />
           </Pressable>
         )}
       />
@@ -66,26 +75,44 @@ export default function ScoutFixturePicker() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
+  container: { flex: 1, backgroundColor: fo.color.bg },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     padding: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#e5e7eb",
+    borderBottomWidth: 2,
+    borderBottomColor: fo.color.line,
+    backgroundColor: fo.color.surface,
   },
-  welcome: { fontSize: 14, color: "#374151" },
-  logout: { fontSize: 14, color: "#dc2626", fontWeight: "600" },
-  list: { padding: 16, gap: 8 },
-  empty: { textAlign: "center", color: "#6b7280", marginTop: 32 },
+  welcome: { fontSize: 10.5, letterSpacing: 0.5, color: fo.color.inkDim, fontWeight: "700" },
+  welcomeName: { color: fo.color.ink },
+  logout: { fontSize: 11, fontWeight: "800", letterSpacing: 0.4, color: fo.color.cardRed },
+  list: { padding: 16, gap: 10 },
+  empty: { textAlign: "center", color: fo.color.inkDim, marginTop: 32, fontSize: 14 },
   row: {
+    flexDirection: "row",
+    alignItems: "center",
     padding: 16,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-    borderRadius: 8,
+    backgroundColor: fo.color.surface,
+    borderWidth: 2,
+    borderColor: fo.color.line,
+    borderRadius: fo.radius.md,
   },
-  rowText: { gap: 4 },
-  matchup: { fontSize: 16, fontWeight: "600" },
-  meta: { fontSize: 13, color: "#6b7280" },
+  rowText: { flex: 1, gap: 6 },
+  matchup: { fontSize: 15, fontFamily: fo.font.displayBold, color: fo.color.ink, textTransform: "uppercase" },
+  metaRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  comp: { fontSize: 11, color: fo.color.inkDim, textTransform: "uppercase", letterSpacing: 0.3 },
+  time: { fontSize: 11, color: fo.color.inkDim, fontFamily: fo.font.mono },
+  live: {
+    fontSize: 10,
+    fontFamily: fo.font.mono,
+    fontWeight: "700",
+    color: "#fff",
+    backgroundColor: fo.color.live,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 2,
+  },
+  chevron: { width: 8, height: 8, borderTopWidth: 2, borderRightWidth: 2, borderColor: fo.color.ink, transform: [{ rotate: "45deg" }] },
 });

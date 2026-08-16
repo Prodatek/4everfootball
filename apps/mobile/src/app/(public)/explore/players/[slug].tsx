@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchPlayerBySlug } from "@/features/players/api";
 import { fetchPlayerStats } from "@/features/stats/api";
 import { ScreenState } from "@/components/list-row";
+import { floodlight as fl } from "@/theme/floodlight";
 
 export default function PlayerDetailScreen() {
   const { slug } = useLocalSearchParams<{ slug: string }>();
@@ -58,12 +59,12 @@ function StatCell({ label, value }: { label: string; value: number }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
-  header: { padding: 16, gap: 4, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#e5e7eb" },
-  name: { fontSize: 22, fontWeight: "700" },
-  meta: { fontSize: 14, color: "#6b7280" },
-  statsGrid: { flexDirection: "row", flexWrap: "wrap", padding: 16, gap: 12 },
-  statCell: { width: "30%", alignItems: "center", gap: 2 },
-  statValue: { fontSize: 20, fontWeight: "700" },
-  statLabel: { fontSize: 12, color: "#6b7280", textAlign: "center" },
+  container: { flex: 1, backgroundColor: fl.color.bg },
+  header: { padding: 20, gap: 4, borderBottomWidth: 1, borderBottomColor: fl.color.line },
+  name: { fontSize: 24, fontFamily: fl.font.display, color: fl.color.ink, textTransform: "uppercase" },
+  meta: { fontSize: 13, color: fl.color.inkDim, fontFamily: fl.font.body },
+  statsGrid: { flexDirection: "row", flexWrap: "wrap", padding: 20, gap: 16 },
+  statCell: { width: "28%", alignItems: "center", gap: 2 },
+  statValue: { fontSize: 22, fontFamily: fl.font.mono, fontWeight: "700", color: fl.color.brand },
+  statLabel: { fontSize: 11, color: fl.color.inkDim, textAlign: "center", fontFamily: fl.font.body },
 });

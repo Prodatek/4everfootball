@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import type { MatchEventType, Player } from "@4ef/shared";
 import { randomUUID } from "@/lib/uuid";
+import { fourthOfficial as fo } from "@/theme/fourth-official";
 import { MATCH_EVENT_LABELS } from "./event-labels";
 import { EVENT_FIELD_REQUIREMENTS } from "./event-field-requirements";
 import type { RecordMatchEventInput } from "./api";
@@ -21,9 +22,9 @@ interface RecordEventSheetProps {
   onConfirm: (input: RecordMatchEventInput) => void;
 }
 
-// RN Modal equivalent of web's record-event-dialog.tsx. The parent remounts
-// this with a fresh `key` every time it opens (see fixtures/[id].tsx), so
-// local state here doubles as the "reset on open" mechanism.
+// The parent remounts this with a fresh `key` every time it opens (see
+// fixtures/[id].tsx), so local state here doubles as the "reset on open"
+// mechanism.
 export function RecordEventSheet({
   eventType,
   homeTeam,
@@ -74,11 +75,11 @@ export function RecordEventSheet({
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
           <ScrollView>
-            <Text style={styles.title}>{MATCH_EVENT_LABELS[eventType]}</Text>
+            <Text style={styles.title}>{MATCH_EVENT_LABELS[eventType].toUpperCase()}</Text>
 
             {needsTeam && (
               <View style={styles.field}>
-                <Text style={styles.label}>Team</Text>
+                <Text style={styles.label}>TEAM</Text>
                 <View style={styles.teamRow}>
                   <Pressable
                     style={[styles.teamButton, teamId === homeTeam.id && styles.teamButtonActive]}
@@ -102,7 +103,7 @@ export function RecordEventSheet({
 
             {needsPlayer && (
               <View style={styles.field}>
-                <Text style={styles.label}>{needsSubOff ? "Player coming on" : "Player"}</Text>
+                <Text style={styles.label}>{needsSubOff ? "PLAYER COMING ON" : "PLAYER"}</Text>
                 {squad.length === 0 && (
                   <Text style={styles.hint}>
                     {teamId ? "No players found for this team." : "Select a team first."}
@@ -120,7 +121,7 @@ export function RecordEventSheet({
                     >
                       <Text style={playerId === player.id ? styles.teamTextActive : styles.teamText}>
                         {player.firstName} {player.lastName}
-                        {player.shirtNumber ? ` (#${player.shirtNumber})` : ""}
+                        {player.shirtNumber ? ` #${player.shirtNumber}` : ""}
                       </Text>
                     </Pressable>
                   ))}
@@ -131,7 +132,7 @@ export function RecordEventSheet({
             {(needsAssist || needsSubOff) && (
               <View style={styles.field}>
                 <Text style={styles.label}>
-                  {needsSubOff ? "Player going off" : "Assist (optional)"}
+                  {needsSubOff ? "PLAYER GOING OFF" : "ASSIST (OPTIONAL)"}
                 </Text>
                 <View style={styles.playerList}>
                   {squad
@@ -149,7 +150,7 @@ export function RecordEventSheet({
                           style={secondPlayerId === player.id ? styles.teamTextActive : styles.teamText}
                         >
                           {player.firstName} {player.lastName}
-                          {player.shirtNumber ? ` (#${player.shirtNumber})` : ""}
+                          {player.shirtNumber ? ` #${player.shirtNumber}` : ""}
                         </Text>
                       </Pressable>
                     ))}
@@ -158,7 +159,7 @@ export function RecordEventSheet({
             )}
 
             <View style={styles.field}>
-              <Text style={styles.label}>Minute</Text>
+              <Text style={styles.label}>MINUTE</Text>
               <TextInput
                 style={styles.input}
                 keyboardType="number-pad"
@@ -170,14 +171,14 @@ export function RecordEventSheet({
 
           <View style={styles.actions}>
             <Pressable style={styles.cancelButton} onPress={onCancel}>
-              <Text style={styles.cancelText}>Cancel</Text>
+              <Text style={styles.cancelText}>CANCEL</Text>
             </Pressable>
             <Pressable
               style={[styles.confirmButton, !canConfirm && styles.confirmButtonDisabled]}
               disabled={!canConfirm}
               onPress={handleConfirm}
             >
-              <Text style={styles.confirmText}>Confirm</Text>
+              <Text style={styles.confirmText}>CONFIRM</Text>
             </Pressable>
           </View>
         </View>
@@ -187,56 +188,54 @@ export function RecordEventSheet({
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
+  backdrop: { flex: 1, backgroundColor: "rgba(20,23,26,0.55)", justifyContent: "flex-end" },
   sheet: {
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    backgroundColor: fo.color.surface,
+    borderTopWidth: 3,
+    borderColor: fo.color.line,
     padding: 20,
     maxHeight: "85%",
   },
-  title: { fontSize: 18, fontWeight: "700", marginBottom: 16 },
+  title: { fontSize: 18, fontFamily: fo.font.display, color: fo.color.ink, marginBottom: 16 },
   field: { marginBottom: 16, gap: 8 },
-  label: { fontSize: 14, fontWeight: "600", color: "#374151" },
-  hint: { fontSize: 13, color: "#9ca3af" },
+  label: { fontSize: 11, fontWeight: "800", letterSpacing: 0.4, color: fo.color.inkDim },
+  hint: { fontSize: 13, color: fo.color.inkDim },
   teamRow: { flexDirection: "row", gap: 8 },
   teamButton: {
     flex: 1,
     padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#d1d5db",
+    borderWidth: 2,
+    borderColor: fo.color.line,
     alignItems: "center",
   },
-  teamButtonActive: { backgroundColor: "#111827", borderColor: "#111827" },
-  teamText: { color: "#111827", fontWeight: "600" },
-  teamTextActive: { color: "#fff", fontWeight: "600" },
+  teamButtonActive: { backgroundColor: fo.color.accent, borderColor: fo.color.accent },
+  teamText: { color: fo.color.ink, fontWeight: "700", fontSize: 13 },
+  teamTextActive: { color: fo.color.accentInk, fontWeight: "700", fontSize: 13 },
   playerList: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   playerButton: {
     paddingVertical: 8,
     paddingHorizontal: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#d1d5db",
+    borderWidth: 2,
+    borderColor: fo.color.line,
   },
-  playerButtonActive: { backgroundColor: "#111827", borderColor: "#111827" },
+  playerButtonActive: { backgroundColor: fo.color.accent, borderColor: fo.color.accent },
   input: {
-    borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: fo.color.line,
     padding: 10,
     fontSize: 16,
+    fontFamily: fo.font.mono,
+    color: fo.color.ink,
   },
   actions: { flexDirection: "row", gap: 8, marginTop: 8 },
-  cancelButton: { flex: 1, padding: 14, alignItems: "center" },
-  cancelText: { color: "#6b7280", fontWeight: "600" },
+  cancelButton: { flex: 1, padding: 16, alignItems: "center" },
+  cancelText: { color: fo.color.inkDim, fontWeight: "800", letterSpacing: 0.4 },
   confirmButton: {
     flex: 1,
-    padding: 14,
-    borderRadius: 8,
-    backgroundColor: "#111827",
+    padding: 16,
+    backgroundColor: fo.color.accent,
     alignItems: "center",
   },
   confirmButtonDisabled: { opacity: 0.4 },
-  confirmText: { color: "#fff", fontWeight: "700" },
+  confirmText: { color: fo.color.accentInk, fontFamily: fo.font.displayBold, letterSpacing: 0.5 },
 });

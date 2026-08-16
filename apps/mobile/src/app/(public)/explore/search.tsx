@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { search } from "@/features/search/api";
 import { ListRow, ScreenState } from "@/components/list-row";
+import { floodlight as fl } from "@/theme/floodlight";
 
 export default function SearchScreen() {
   const router = useRouter();
@@ -27,6 +28,7 @@ export default function SearchScreen() {
       <TextInput
         style={styles.input}
         placeholder="Search teams, players, competitions, news..."
+        placeholderTextColor={fl.color.inkDim}
         value={query}
         onChangeText={setQuery}
         autoCapitalize="none"
@@ -38,7 +40,7 @@ export default function SearchScreen() {
         {query && !isLoading && !hasResults && <ScreenState>No results for &quot;{query}&quot;.</ScreenState>}
 
         {data && data.teams.length > 0 && (
-          <Section title="Teams">
+          <Section title="TEAMS">
             {data.teams.map((team) => (
               <ListRow
                 key={team.id}
@@ -51,7 +53,7 @@ export default function SearchScreen() {
         )}
 
         {data && data.players.length > 0 && (
-          <Section title="Players">
+          <Section title="PLAYERS">
             {data.players.map((player) => (
               <ListRow
                 key={player.id}
@@ -64,7 +66,7 @@ export default function SearchScreen() {
         )}
 
         {data && data.competitions.length > 0 && (
-          <Section title="Competitions">
+          <Section title="COMPETITIONS">
             {data.competitions.map((competition) => (
               <ListRow
                 key={competition.id}
@@ -77,7 +79,7 @@ export default function SearchScreen() {
         )}
 
         {data && data.news.length > 0 && (
-          <Section title="News">
+          <Section title="NEWS">
             {data.news.map((article) => (
               <ListRow
                 key={article.id}
@@ -102,17 +104,20 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
+  container: { flex: 1, backgroundColor: fl.color.bg },
   input: {
     margin: 16,
     borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
+    borderColor: fl.color.line,
+    backgroundColor: fl.color.surface,
+    borderRadius: fl.radius.md,
+    padding: 13,
+    fontSize: 15,
+    color: fl.color.ink,
+    fontFamily: fl.font.body,
   },
-  results: { paddingHorizontal: 16, paddingBottom: 24, gap: 16 },
+  results: { paddingHorizontal: 16, paddingBottom: 24, gap: 20, flexGrow: 1 },
   section: { gap: 8 },
-  sectionTitle: { fontSize: 15, fontWeight: "700" },
+  sectionTitle: { fontSize: 13, fontFamily: fl.font.bodySemibold, color: fl.color.ink, letterSpacing: 0.5 },
   sectionList: { gap: 8 },
 });

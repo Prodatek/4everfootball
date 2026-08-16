@@ -1,32 +1,60 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "@/features/auth/auth-context";
+import { fourthOfficial as fo } from "@/theme/fourth-official";
 
 export default function ScoutProfile() {
   const { user, logout } = useAuth();
 
   return (
     <View style={styles.container}>
-      <Text style={styles.name}>{user?.displayName}</Text>
-      <Text style={styles.email}>{user?.email}</Text>
-      <Text style={styles.roles}>{user?.roles.join(", ")}</Text>
+      <View style={styles.card}>
+        <Text style={styles.name}>{user?.displayName}</Text>
+        <Text style={styles.email}>{user?.email}</Text>
+        <View style={styles.roles}>
+          {user?.roles.map((role) => (
+            <Text key={role} style={styles.roleChip}>
+              {role}
+            </Text>
+          ))}
+        </View>
+      </View>
 
       <Pressable style={styles.logoutButton} onPress={logout}>
-        <Text style={styles.logoutText}>Log out</Text>
+        <Text style={styles.logoutText}>LOG OUT</Text>
       </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, gap: 8, backgroundColor: "#fff" },
-  name: { fontSize: 20, fontWeight: "700" },
-  email: { fontSize: 14, color: "#6b7280" },
-  roles: { fontSize: 13, color: "#9ca3af", marginBottom: 24 },
+  container: { flex: 1, padding: 16, gap: 16, backgroundColor: fo.color.bg },
+  card: {
+    backgroundColor: fo.color.surface,
+    borderWidth: 2,
+    borderColor: fo.color.line,
+    borderRadius: fo.radius.md,
+    padding: 20,
+    gap: 8,
+  },
+  name: { fontSize: 20, fontFamily: fo.font.display, color: fo.color.ink, textTransform: "uppercase" },
+  email: { fontSize: 14, color: fo.color.inkDim },
+  roles: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 },
+  roleChip: {
+    fontSize: 10,
+    fontFamily: fo.font.mono,
+    fontWeight: "700",
+    color: fo.color.ink,
+    borderWidth: 1,
+    borderColor: fo.color.line,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 2,
+  },
   logoutButton: {
-    padding: 14,
-    borderRadius: 8,
-    backgroundColor: "#111827",
+    padding: 16,
+    borderRadius: fo.radius.md,
+    backgroundColor: fo.color.cardRed,
     alignItems: "center",
   },
-  logoutText: { color: "#fff", fontWeight: "700" },
+  logoutText: { color: "#fff", fontFamily: fo.font.displayBold, letterSpacing: 0.5 },
 });

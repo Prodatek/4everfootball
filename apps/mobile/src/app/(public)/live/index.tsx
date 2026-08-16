@@ -5,6 +5,7 @@ import type { Fixture } from "@4ef/shared";
 import { fetchFixtures } from "@/features/fixtures/api";
 import { FixtureRow } from "@/features/fixtures/fixture-row";
 import { ScreenState } from "@/components/list-row";
+import { floodlight as fl } from "@/theme/floodlight";
 
 const POLL_INTERVAL_MS = 30_000;
 const CONCLUDED_WINDOW_HOURS = 3;
@@ -45,10 +46,10 @@ export default function LiveScreen() {
   });
 
   return (
-    <ScrollView contentContainerStyle={styles.content}>
-      <Section title="Live now" fixtures={live?.data} onPress={goTo} />
-      <Section title="Just concluded" fixtures={concluded?.data} onPress={goTo} />
-      <Section title="Upcoming (next 24h)" fixtures={upcoming?.data} onPress={goTo} />
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <Section title="LIVE NOW" fixtures={live?.data} onPress={goTo} accent />
+      <Section title="JUST CONCLUDED" fixtures={concluded?.data} onPress={goTo} />
+      <Section title="UPCOMING · NEXT 24H" fixtures={upcoming?.data} onPress={goTo} />
     </ScrollView>
   );
 
@@ -61,14 +62,19 @@ function Section({
   title,
   fixtures,
   onPress,
+  accent,
 }: {
   title: string;
   fixtures?: Fixture[];
   onPress: (id: string) => void;
+  accent?: boolean;
 }) {
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
+      <View style={styles.sectionHead}>
+        {accent && <View style={styles.liveDot} />}
+        <Text style={styles.sectionTitle}>{title}</Text>
+      </View>
       {!fixtures ? (
         <ScreenState>Loading...</ScreenState>
       ) : fixtures.length === 0 ? (
@@ -85,8 +91,11 @@ function Section({
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 16, gap: 24 },
-  section: { gap: 8 },
-  sectionTitle: { fontSize: 16, fontWeight: "700" },
+  container: { backgroundColor: fl.color.bg },
+  content: { padding: 16, gap: 28, flexGrow: 1 },
+  section: { gap: 10 },
+  sectionHead: { flexDirection: "row", alignItems: "center", gap: 8 },
+  liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: fl.color.live },
+  sectionTitle: { fontSize: 13, fontFamily: fl.font.bodySemibold, color: fl.color.ink, letterSpacing: 0.5 },
   list: { gap: 8 },
 });
