@@ -26,7 +26,10 @@ export class S3StorageService {
       // they're absent (real AWS S3), fall back to the SDK's default
       // credential chain (the ECS task role) and virtual-hosted addressing.
       ...(accessKeyId && secretAccessKey
-        ? { credentials: { accessKeyId, secretAccessKey }, forcePathStyle: true }
+        ? {
+            credentials: { accessKeyId, secretAccessKey },
+            forcePathStyle: true,
+          }
         : {}),
     });
     this.bucket = this.config.get<string>('S3_BUCKET') as string;

@@ -13,3 +13,5 @@ export * from "./admin-user";
 export * from "./dashboard";
 export * from "./media";
 export * from "./search";
+export * from "./pricing";
+export * from "./organisation";

@@ -29,8 +29,68 @@ model User {
   recordedMatchEvents MatchEvent[]
   newsArticles        NewsArticle[]
   uploadedMedia       Media[]
+  organisationMembers OrganisationMember[]
+  confirmedPayments   Payment[]            @relation("PaymentConfirmedBy")
 
   @@map("users")
+}
+
+// ===== Phase 2 (MONETISATION_BUILD_BRIEF.md): organisations & tenancy =====
+//
+// The brief lists competition-organiser org types only (ORGANISER|ACADEMY|
+// SCHOOL_LEAGUE|FEDERATION) but its own club self-registration flow (§3.4)
+// needs clubs to be payers too — "every competition, academy, invoice and
+// payment hangs off organisation_id" only holds if a club paying for player
+// registrations has an organisation_id to hang off of. CLUB is added here to
+// make that actually work, not left as an unstated gap.
+enum OrganisationType {
+  ORGANISER
+  ACADEMY
+  SCHOOL_LEAGUE
+  FEDERATION
+  CLUB
+}
+
+enum OrganisationMemberRole {
+  OWNER
+  ADMIN
+  RECORDER
+  VIEWER
+}
+
+model Organisation {
+  id          String           @id @default(uuid())
+  name        String
+  type        OrganisationType
+  contactName String?
+  phone       String?
+  email       String?
+  address     String?
+  rcNumber    String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  members      OrganisationMember[]
+  competitions Competition[]
+  teams        Team[]
+  payments     Payment[]
+  invoices     Invoice[]
+
+  @@map("organisations")
+}
+
+model OrganisationMember {
+  id             String                 @id @default(uuid())
+  organisationId String
+  organisation   Organisation           @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           OrganisationMemberRole
+  createdAt      DateTime               @default(now())
+
+  @@unique([organisationId, userId])
+  @@index([userId])
+  @@map("organisation_members")
 }
 
 model RefreshToken {
@@ -61,13 +121,23 @@ model Team {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  players            Player[]
-  competitionEntries CompetitionEntry[]
-  homeFixtures       Fixture[]          @relation("HomeFixtures")
-  awayFixtures       Fixture[]          @relation("AwayFixtures")
-  matchEvents        MatchEvent[]
+  // Nullable and NOT backfilled — every team that exists today was created
+  // by an admin, not by a club self-registering (that flow is new in Phase
+  // 2). Stays null until a club account claims/creates the team through the
+  // registration flow; SetNull (not Restrict) since unlinking a team from a
+  // deleted club account shouldn't be blocked the way money records are.
+  organisationId String?
+  organisation   Organisation? @relation(fields: [organisationId], references: [id], onDelete: SetNull)
+
+  players             Player[]
+  competitionEntries  CompetitionEntry[]
+  homeFixtures        Fixture[]            @relation("HomeFixtures")
+  awayFixtures        Fixture[]            @relation("AwayFixtures")
+  matchEvents         MatchEvent[]
+  playerRegistrations PlayerRegistration[]
 
   @@index([country])
+  @@index([organisationId])
   @@map("teams")
 }
 
@@ -103,8 +173,9 @@ model Player {
   teamId String?
   team   Team?   @relation(fields: [teamId], references: [id], onDelete: SetNull)
 
-  matchEventsAsPlayer MatchEvent[] @relation("MatchEventPlayer")
-  matchEventsAsAssist MatchEvent[] @relation("MatchEventAssist")
+  matchEventsAsPlayer MatchEvent[]         @relation("MatchEventPlayer")
+  matchEventsAsAssist MatchEvent[]         @relation("MatchEventAssist")
+  registrations       PlayerRegistration[]
 
   @@index([teamId])
   @@index([nationality])
@@ -115,6 +186,22 @@ enum CompetitionType {
   LEAGUE
   CUP
   TOURNAMENT
+}
+
+enum CompetitionTier {
+  COMMUNITY
+  LEAGUE
+  CHAMPIONSHIP
+  FEDERATION
+}
+
+enum LicenceStatus {
+  DRAFT
+  AWAITING_DEPOSIT
+  LICENSED
+  ACTIVE
+  CLOSED
+  SUSPENDED
 }
 
 model Competition {
@@ -131,11 +218,34 @@ model Competition {
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
 
-  entries  CompetitionEntry[]
-  fixtures Fixture[]
+  // Every competition belongs to an organisation now (was a bare global
+  // entity before Phase 2) — NOT NULL because the migration backfills every
+  // existing row to a seeded "legacy" organisation before this constraint is
+  // applied; see migration 2_organisations_and_money. Restrict: an
+  // organisation with competitions can't be deleted out from under them.
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+
+  // Licensing/entitlements (brief §3.3). Existing competitions are
+  // backfilled as tier=FEDERATION/licenceStatus=ACTIVE/maxTeams=null — i.e.
+  // grandfathered in as already-licensed with no limits, since they're real,
+  // already-public data that never agreed to a paywall that didn't exist
+  // when they were created. New competitions default to COMMUNITY/DRAFT.
+  tier                 CompetitionTier @default(COMMUNITY)
+  licenceStatus        LicenceStatus   @default(DRAFT)
+  licensedUntil        DateTime?
+  maxTeams             Int?
+  registrationFeeKobo  Int?
+  registrationOpensAt  DateTime?
+  registrationClosesAt DateTime?
+
+  entries             CompetitionEntry[]
+  fixtures            Fixture[]
+  playerRegistrations PlayerRegistration[]
 
   @@index([country])
   @@index([season])
+  @@index([organisationId])
   @@map("competitions")
 }
 
@@ -150,6 +260,59 @@ model CompetitionEntry {
   @@unique([competitionId, teamId])
   @@index([teamId])
   @@map("competition_entries")
+}
+
+// The actual "squad" granularity the brief's registration flow needs.
+// CompetitionEntry (above) is team-level; payment is per-player ("a club
+// can pay for 15 of 20 players; only the paid 15 become eligible" — §3.4),
+// so eligibility has to be tracked per (competition, player), not per team.
+enum RegistrationStatus {
+  DRAFT
+  PENDING_PAYMENT
+  CONFIRMED
+  LOCKED
+}
+
+model PlayerRegistration {
+  id            String             @id @default(uuid())
+  competitionId String
+  competition   Competition        @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  teamId        String
+  team          Team               @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  playerId      String
+  player        Player             @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  status        RegistrationStatus @default(DRAFT)
+  // Snapshotted at creation from pricing.ts, same reasoning as
+  // Competition.registrationFeeKobo — a later pricing change must never
+  // silently reprice something already in progress.
+  priceKobo     Int
+  paymentId     String?
+  payment       Payment?           @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  // Guardian consent (brief §6, "Data ownership and consent") — captured at
+  // registration for anyone under 18, timestamped with the consenting
+  // party's details. Nullable: only required/populated when the player is a
+  // minor, enforced in PlayerRegistrationService against Player.dateOfBirth,
+  // not at the schema level (the schema can't know the player's age at
+  // constraint-check time without a computed column).
+  guardianName      String?
+  guardianPhone     String?
+  guardianEmail     String?
+  guardianConsentAt DateTime?
+
+  // Set once status transitions to LOCKED (registration close) — after
+  // this, the row itself is meant to be treated as immutable by application
+  // code, same "correction not mutation" spirit as match_events, though not
+  // DB-trigger-enforced here since the stakes (a wrong shirt number) don't
+  // match match_events' tamper-evidence requirement.
+  lockedAt  DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([competitionId, playerId])
+  @@index([teamId])
+  @@index([paymentId])
+  @@map("player_registrations")
 }
 
 enum FixtureStatus {
@@ -323,4 +486,153 @@ model Media {
 
   @@index([kind])
   @@map("media")
+}
+
+// ===== Phase 2: payments (MONETISATION_BUILD_BRIEF.md §3.5-3.7) =====
+
+enum PaymentProvider {
+  PAYSTACK
+  BANK_TRANSFER
+  CASH
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  ABANDONED
+}
+
+enum PaymentPurpose {
+  LICENCE
+  ONBOARDING
+  PLAYER_REGISTRATION
+  ACADEMY_PLAN
+  ADD_ON
+}
+
+model Payment {
+  id                String          @id @default(uuid())
+  organisationId    String
+  organisation      Organisation    @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  // Our own reference, generated before ever calling Paystack — created
+  // PENDING first, Paystack initialize called second (§3.5's flow), so this
+  // always exists even if the Paystack call itself never completes.
+  reference         String          @unique
+  provider          PaymentProvider
+  // Paystack's own reference once initialize/webhook gives us one; null for
+  // BANK_TRANSFER/CASH until an admin fills it in when confirming.
+  providerReference String?
+  amountKobo        Int
+  currency          String          @default("NGN")
+  status            PaymentStatus   @default(PENDING)
+  purpose           PaymentPurpose
+  // Polymorphic pointer at whatever this payment is for (a PlayerRegistration
+  // id, a Competition id for a licence fee, etc.) — deliberately not a typed
+  // FK per subjectType, since purpose already enumerates the closed set of
+  // things a payment can be for and a real FK per type would mean N nullable
+  // FK columns for N purposes.
+  subjectType       String
+  subjectId         String
+  paidAt            DateTime?
+  rawResponse       Json?
+
+  // Bank-transfer-specific fields (§3.6: "attach the transfer reference and
+  // optionally a proof image, record who confirmed it") — the brief
+  // describes this feature without listing these columns on its payments
+  // sketch; added here to actually support it rather than leave it
+  // unimplementable.
+  confirmedById    String?
+  confirmedBy      User?   @relation("PaymentConfirmedBy", fields: [confirmedById], references: [id], onDelete: SetNull)
+  transferProofUrl String?
+  transferNote     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  playerRegistrations PlayerRegistration[]
+
+  @@index([organisationId])
+  @@index([status])
+  @@index([subjectType, subjectId])
+  @@map("payments")
+}
+
+// Every webhook payload is stored raw BEFORE processing (§3.5) — "when
+// something goes wrong at 9pm on a matchday you will need it." This table
+// is deliberately append-only in spirit (never updated after processedAt is
+// set) though not DB-trigger-enforced like match_events — a bad webhook
+// payload isn't a business-critical tamper-evidence concern the way match
+// results are.
+model WebhookEvent {
+  id                String    @id @default(uuid())
+  provider          String
+  eventType         String
+  providerReference String?
+  signatureValid    Boolean
+  rawBody           String
+  processedAt       DateTime?
+  processingError   String?
+  createdAt         DateTime  @default(now())
+
+  @@index([provider, providerReference])
+  @@map("webhook_events")
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PART_PAID
+  PAID
+  CANCELLED
+  EXPIRED
+}
+
+model Invoice {
+  id             String        @id @default(uuid())
+  organisationId String
+  organisation   Organisation  @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  // Human-readable, sequential (4EV-2026-0001) — generated from the
+  // invoice_quote_seq Postgres sequence in the migration, formatted in
+  // InvoicesService. "Organisers need them for their sponsor's records, and
+  // looking institutional is worth money in this segment."
+  quoteNumber    String        @unique
+  status         InvoiceStatus @default(DRAFT)
+  subtotalKobo   Int
+  discountKobo   Int           @default(0)
+  totalKobo      Int
+  validUntil     DateTime?
+  // Two milestones (50% on signature, 50% before first matchday per §3.7),
+  // not one lump — both nullable since not every invoice uses a split
+  // schedule.
+  depositKobo    Int?
+  balanceKobo    Int?
+  issuedAt       DateTime?
+  paidAt         DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  lines InvoiceLine[]
+
+  @@index([organisationId])
+  @@map("invoices")
+}
+
+model InvoiceLine {
+  id          String  @id @default(uuid())
+  invoiceId   String
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description String
+  // What this line is priced against (e.g. "player" for a
+  // per-player-registration line) — free text, mirrors the brief's `basis`
+  // column exactly rather than a typed enum, since invoice line descriptions
+  // are inherently freeform.
+  basis       String?
+  quantity    Int
+  unitKobo    Int
+  amountKobo  Int
+
+  @@index([invoiceId])
+  @@map("invoice_lines")
 }

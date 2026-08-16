@@ -136,6 +136,8 @@ export class MatchEventsService {
           'Player does not belong to either team in this fixture',
         );
       }
+
+      await this.assertRegistrationEligible(playerId, fixture.competitionId);
     }
 
     if (dto.type === 'CORRECTION') {
@@ -218,6 +220,41 @@ export class MatchEventsService {
     this.gateway.broadcastState(fixtureId, await this.getLiveState(fixtureId));
 
     return publicEvent;
+  }
+
+  /**
+   * Enforces the Phase 2 brief's "unpaid squad cannot be selected for a
+   * fixture" rule at the actual point a player becomes selectable today —
+   * there is no separate pre-match squad-selection step in this codebase.
+   * A raw query (not a PlayerRegistrationsService import) avoids adding a
+   * new cross-module dependency from MatchesModule onto
+   * PlayerRegistrationsModule/PaymentsModule/OrganisationsModule for a
+   * single boolean check. Competitions with no PlayerRegistration rows at
+   * all (i.e. every competition that predates paid registration) are
+   * untouched — this only activates once a registration row exists for
+   * that player in that competition.
+   */
+  private async assertRegistrationEligible(
+    playerId: string,
+    competitionId: string,
+  ): Promise<void> {
+    const registration = await this.prisma.playerRegistration.findUnique({
+      where: { competitionId_playerId: { competitionId, playerId } },
+      select: { status: true },
+    });
+
+    if (!registration) {
+      return;
+    }
+
+    if (
+      registration.status !== 'CONFIRMED' &&
+      registration.status !== 'LOCKED'
+    ) {
+      throw new BadRequestException(
+        'This player has an unpaid or incomplete registration for this competition and cannot be selected until it is confirmed',
+      );
+    }
   }
 
   private async recomputeFixture(

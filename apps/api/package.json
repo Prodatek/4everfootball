@@ -21,7 +21,8 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "rebuild-check": "ts-node -r tsconfig-paths/register scripts/rebuild-from-events.ts"
+    "rebuild-check": "ts-node -r tsconfig-paths/register scripts/rebuild-from-events.ts",
+    "check-money-literals": "ts-node -r tsconfig-paths/register scripts/check-money-literals.ts"
   },
   "dependencies": {
     "@4ef/shared": "workspace:*",

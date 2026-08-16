@@ -23,6 +23,10 @@ import { MediaModule } from './modules/media/media.module';
 import { SearchModule } from './modules/search/search.module';
 import { SearchAdminModule } from './modules/search/search-admin.module';
 import { HealthController } from './modules/health/health.controller';
+import { OrganisationsModule } from './modules/organisations/organisations.module';
+import { PaymentsModule } from './modules/payments/payments.module';
+import { PlayerRegistrationsModule } from './modules/player-registrations/player-registrations.module';
+import { InvoicesModule } from './modules/invoices/invoices.module';
 
 @Module({
   imports: [
@@ -44,6 +48,10 @@ import { HealthController } from './modules/health/health.controller';
     MediaModule,
     SearchModule,
     SearchAdminModule,
+    OrganisationsModule,
+    PaymentsModule,
+    PlayerRegistrationsModule,
+    InvoicesModule,
   ],
   controllers: [HealthController],
   providers: [

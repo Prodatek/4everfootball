@@ -14,9 +14,12 @@ const HOME_TEAM_ID = 'home-team';
 const AWAY_TEAM_ID = 'away-team';
 const RECORDED_BY = 'user-1';
 
+const COMPETITION_ID = 'competition-1';
+
 function fakeFixture() {
   return {
     id: FIXTURE_ID,
+    competitionId: COMPETITION_ID,
     homeTeamId: HOME_TEAM_ID,
     awayTeamId: AWAY_TEAM_ID,
     status: 'LIVE',
@@ -50,6 +53,7 @@ describe('MatchEventsService', () => {
   let repository: jest.Mocked<MatchEventRepository>;
   let fixturesService: jest.Mocked<FixturesService>;
   let playersService: jest.Mocked<PlayersService>;
+  let prisma: { playerRegistration: { findUnique: jest.Mock } };
 
   beforeEach(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -82,6 +86,9 @@ describe('MatchEventsService', () => {
             $transaction: jest.fn((callback: (tx: unknown) => unknown) =>
               callback({ $queryRaw: jest.fn().mockResolvedValue(undefined) }),
             ),
+            playerRegistration: {
+              findUnique: jest.fn().mockResolvedValue(null),
+            },
           },
         },
         {
@@ -99,6 +106,7 @@ describe('MatchEventsService', () => {
     repository = moduleRef.get(MATCH_EVENT_REPOSITORY);
     fixturesService = moduleRef.get(FixturesService);
     playersService = moduleRef.get(PlayersService);
+    prisma = moduleRef.get(PrismaService);
   });
 
   const baseDto = {
@@ -147,6 +155,61 @@ describe('MatchEventsService', () => {
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(repository.create).not.toHaveBeenCalled();
+  });
+
+  it('allows selecting a player with no registration row at all (competition predates paid registration)', async () => {
+    playersService.findById.mockResolvedValue({
+      id: 'player-1',
+      teamId: HOME_TEAM_ID,
+    } as never);
+    prisma.playerRegistration.findUnique.mockResolvedValue(null);
+    repository.create.mockResolvedValue(fakeEvent() as never);
+
+    await service.recordEvent(
+      FIXTURE_ID,
+      { ...baseDto, playerId: 'player-1' } as never,
+      RECORDED_BY,
+    );
+
+    expect(repository.create).toHaveBeenCalled();
+  });
+
+  it('rejects selecting a player whose registration for this competition is not yet paid', async () => {
+    playersService.findById.mockResolvedValue({
+      id: 'player-1',
+      teamId: HOME_TEAM_ID,
+    } as never);
+    prisma.playerRegistration.findUnique.mockResolvedValue({
+      status: 'PENDING_PAYMENT',
+    });
+
+    await expect(
+      service.recordEvent(
+        FIXTURE_ID,
+        { ...baseDto, playerId: 'player-1' } as never,
+        RECORDED_BY,
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(repository.create).not.toHaveBeenCalled();
+  });
+
+  it('allows selecting a player whose registration is CONFIRMED or LOCKED', async () => {
+    playersService.findById.mockResolvedValue({
+      id: 'player-1',
+      teamId: HOME_TEAM_ID,
+    } as never);
+    prisma.playerRegistration.findUnique.mockResolvedValue({
+      status: 'LOCKED',
+    });
+    repository.create.mockResolvedValue(fakeEvent() as never);
+
+    await service.recordEvent(
+      FIXTURE_ID,
+      { ...baseDto, playerId: 'player-1' } as never,
+      RECORDED_BY,
+    );
+
+    expect(repository.create).toHaveBeenCalled();
   });
 
   it('records a goal and transitions the fixture to LIVE on kickoff', async () => {

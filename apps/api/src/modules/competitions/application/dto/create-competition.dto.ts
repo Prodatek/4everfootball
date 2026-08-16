@@ -6,11 +6,23 @@ import {
   IsOptional,
   IsString,
   IsUrl,
+  IsUUID,
   MaxLength,
   MinLength,
 } from 'class-validator';
 
 export class CreateCompetitionDto {
+  // Optional: defaults to the legacy organisation in CompetitionsService.create()
+  // so the existing admin UI (which doesn't yet have an organisation picker)
+  // keeps working unchanged. Once that UI exists, callers should start
+  // passing this explicitly.
+  @ApiPropertyOptional({
+    description: 'The organiser this competition belongs to',
+  })
+  @IsOptional()
+  @IsUUID()
+  organisationId?: string;
+
   @ApiProperty({ example: 'Premier League' })
   @IsString()
   @MinLength(2)

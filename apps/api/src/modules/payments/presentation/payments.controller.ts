@@ -1,0 +1,146 @@
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Headers,
+  HttpCode,
+  HttpStatus,
+  NotFoundException,
+  Param,
+  Post,
+  Req,
+} from '@nestjs/common';
+import type { RawBodyRequest } from '@nestjs/common';
+import type { Request } from 'express';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { COMPETITION_TIERS, type CompetitionTierKey } from '@4ef/shared';
+import type { JwtAccessPayload } from '@4ef/shared';
+import { Public } from '../../../common/decorators/public.decorator';
+import { Roles } from '../../../common/decorators/roles.decorator';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { PrismaService } from '../../../common/prisma/prisma.service';
+import { OrganisationsService } from '../../organisations/application/organisations.service';
+import { PaymentsService } from '../application/payments.service';
+import { PaystackWebhookService } from '../application/paystack-webhook.service';
+import { PaystackClientService } from '../infrastructure/paystack-client.service';
+import { InitializeLicencePaymentDto } from '../application/dto/initialize-licence-payment.dto';
+import { ConfirmBankTransferDto } from '../application/dto/confirm-bank-transfer.dto';
+
+@ApiTags('payments')
+@Controller('payments')
+export class PaymentsController {
+  constructor(
+    private readonly paymentsService: PaymentsService,
+    private readonly webhookService: PaystackWebhookService,
+    private readonly paystackClient: PaystackClientService,
+    private readonly organisationsService: OrganisationsService,
+    private readonly prisma: PrismaService,
+  ) {}
+
+  // Licence payments only — see the InitializeLicencePaymentDto comment.
+  // Player-registration checkout has its own endpoint under
+  // /player-registrations, since pricing a squad is domain-specific in a
+  // way a generic payments endpoint shouldn't need to know about.
+  @ApiBearerAuth()
+  @Post('initialize')
+  async initializeLicencePayment(
+    @Body() dto: InitializeLicencePaymentDto,
+    @CurrentUser() user: JwtAccessPayload,
+  ) {
+    await this.organisationsService.assertCanManage(dto.organisationId, user);
+
+    const competition = await this.prisma.competition.findUnique({
+      where: { id: dto.competitionId },
+    });
+
+    if (!competition) {
+      throw new NotFoundException('Competition not found');
+    }
+
+    if (competition.organisationId !== dto.organisationId) {
+      throw new BadRequestException(
+        'This competition does not belong to that organisation',
+      );
+    }
+
+    const tierConfig =
+      COMPETITION_TIERS[competition.tier as CompetitionTierKey];
+    const currentUser = await this.prisma.user.findUniqueOrThrow({
+      where: { id: user.sub },
+    });
+
+    const { payment, authorizationUrl } = await this.paymentsService.initialize(
+      {
+        organisationId: dto.organisationId,
+        provider: 'PAYSTACK',
+        purpose: 'LICENCE',
+        subjectType: 'COMPETITION',
+        subjectId: dto.competitionId,
+        amountKobo: tierConfig.priceKobo,
+        payerEmail: currentUser.email,
+      },
+    );
+
+    return { payment, authorizationUrl };
+  }
+
+  // Public: Paystack calls this, not a logged-in browser. Signature
+  // verification (inside webhookService.handle) IS the auth for this route.
+  @Public()
+  @Post('webhook')
+  @HttpCode(HttpStatus.OK)
+  async webhook(
+    @Req() req: RawBodyRequest<Request>,
+    @Headers('x-paystack-signature') signature: string | undefined,
+  ) {
+    if (!req.rawBody) {
+      // Should be unreachable — rawBody:true is set app-wide in main.ts —
+      // but fail loudly rather than silently skip verification if it ever
+      // isn't.
+      throw new BadRequestException(
+        'Raw body unavailable for signature verification',
+      );
+    }
+
+    await this.webhookService.handle(req.rawBody, signature);
+    // Always 200: "Respond 200 immediately, process asynchronously" — a
+    // rejected/failed webhook is recorded (see webhookService.handle), not
+    // surfaced as an HTTP error, so Paystack doesn't retry-storm us for
+    // something retrying won't fix (e.g. an unrecognized reference).
+    return { received: true };
+  }
+
+  // The brief's second legitimate entitlement-granting path (never the
+  // browser redirect) — for a client that wants to confirm payment status
+  // right after returning from Paystack's checkout, without waiting on the
+  // webhook.
+  @ApiBearerAuth()
+  @Post(':id/verify')
+  async verify(@Param('id') id: string) {
+    const payment = await this.prisma.payment.findUnique({ where: { id } });
+
+    if (!payment) {
+      throw new NotFoundException('Payment not found');
+    }
+
+    const result = await this.paystackClient.verify(payment.reference);
+
+    if (result.status === 'success') {
+      await this.paymentsService.fulfilPayment(payment.id);
+    }
+
+    return { status: result.status };
+  }
+
+  @ApiBearerAuth()
+  @Roles('SUPER_ADMIN', 'ADMIN')
+  @Post(':id/confirm-transfer')
+  async confirmTransfer(
+    @Param('id') id: string,
+    @Body() dto: ConfirmBankTransferDto,
+    @CurrentUser() user: JwtAccessPayload,
+  ) {
+    await this.paymentsService.confirmBankTransfer(id, user.sub, dto);
+    return { confirmed: true };
+  }
+}

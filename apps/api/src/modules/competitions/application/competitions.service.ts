@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { LEGACY_ORGANISATION_ID } from '@4ef/shared';
 import {
   paginate,
   type PaginatedResult,
@@ -75,6 +76,7 @@ export class CompetitionsService {
     const competition = await this.competitionRepository.create({
       ...dto,
       slug,
+      organisationId: dto.organisationId ?? LEGACY_ORGANISATION_ID,
       startDate: dto.startDate ? new Date(dto.startDate) : undefined,
       endDate: dto.endDate ? new Date(dto.endDate) : undefined,
     });

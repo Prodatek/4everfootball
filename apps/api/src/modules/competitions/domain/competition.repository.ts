@@ -33,6 +33,7 @@ export interface CreateCompetitionInput {
   startDate?: Date;
   endDate?: Date;
   logoUrl?: string;
+  organisationId: string;
 }
 
 export type UpdateCompetitionInput = Partial<

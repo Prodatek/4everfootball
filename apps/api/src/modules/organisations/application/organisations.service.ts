@@ -1,0 +1,129 @@
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import type { OrganisationMemberRole } from '@prisma/client';
+import type { JwtAccessPayload } from '@4ef/shared';
+import { PrismaService } from '../../../common/prisma/prisma.service';
+import {
+  canCreateCommunityCompetition,
+  checkTeamLimit,
+  effectiveMaxTeams,
+} from '../domain/entitlements';
+import type { CreateOrganisationDto } from './dto/create-organisation.dto';
+
+const MANAGE_ROLES: OrganisationMemberRole[] = ['OWNER', 'ADMIN'];
+
+@Injectable()
+export class OrganisationsService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async create(dto: CreateOrganisationDto, creatorUserId: string) {
+    return this.prisma.organisation.create({
+      data: {
+        ...dto,
+        members: {
+          create: { userId: creatorUserId, role: 'OWNER' },
+        },
+      },
+    });
+  }
+
+  async getById(id: string) {
+    const organisation = await this.prisma.organisation.findUnique({
+      where: { id },
+    });
+
+    if (!organisation) {
+      throw new NotFoundException('Organisation not found');
+    }
+
+    return organisation;
+  }
+
+  async listForUser(userId: string) {
+    return this.prisma.organisation.findMany({
+      where: { members: { some: { userId } } },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  /**
+   * The organisation-scoped authorization check every other Phase 2 module
+   * uses before a mutation: SUPER_ADMIN can act on any organisation (same
+   * platform-super-user convention as everywhere else in this codebase);
+   * otherwise the acting user must be an OWNER/ADMIN member of THIS
+   * specific organisation. Not a full custom guard/decorator — this is a
+   * service-layer check called explicitly, which is enough for the number
+   * of call sites Phase 2 actually has; worth promoting to a real guard if
+   * organisation-scoped routes grow substantially.
+   */
+  async assertCanManage(
+    organisationId: string,
+    actingUser: JwtAccessPayload,
+  ): Promise<void> {
+    if (actingUser.roles.includes('SUPER_ADMIN')) {
+      return;
+    }
+
+    const membership = await this.prisma.organisationMember.findUnique({
+      where: {
+        organisationId_userId: { organisationId, userId: actingUser.sub },
+      },
+    });
+
+    if (!membership || !MANAGE_ROLES.includes(membership.role)) {
+      throw new ForbiddenException(
+        'You must be an owner or admin of this organisation to do that',
+      );
+    }
+  }
+
+  async addMember(
+    organisationId: string,
+    userId: string,
+    role: OrganisationMemberRole,
+  ) {
+    return this.prisma.organisationMember.upsert({
+      where: { organisationId_userId: { organisationId, userId } },
+      create: { organisationId, userId, role },
+      update: { role },
+    });
+  }
+
+  /**
+   * §3.3's free-tier + max-teams gates, called before creating a
+   * competition/adding a team entry. Returns a decision rather than
+   * throwing — "never let a customer hit a wall mid-season with money in
+   * hand" means the caller decides what to do with `needsUpgrade` (e.g.
+   * still allow the write, surface an upgrade prompt), not this method.
+   */
+  async checkCanCreateCommunityCompetition(
+    organisationId: string,
+  ): Promise<boolean> {
+    const openCommunityCount = await this.prisma.competition.count({
+      where: {
+        organisationId,
+        tier: 'COMMUNITY',
+        licenceStatus: { notIn: ['CLOSED'] },
+      },
+    });
+
+    return canCreateCommunityCompetition(openCommunityCount);
+  }
+
+  async checkTeamLimitFor(competitionId: string) {
+    const competition = await this.prisma.competition.findUniqueOrThrow({
+      where: { id: competitionId },
+      select: { tier: true, maxTeams: true },
+    });
+
+    const teamCount = await this.prisma.competitionEntry.count({
+      where: { competitionId },
+    });
+
+    const cap = effectiveMaxTeams(competition.tier, competition.maxTeams);
+    return checkTeamLimit(teamCount, cap);
+  }
+}

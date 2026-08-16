@@ -62,6 +62,47 @@ class EnvironmentVariables {
 
   @IsString()
   MEILISEARCH_API_KEY!: string;
+
+  // Optional, not required, at boot: every non-payment route (teams,
+  // fixtures, match events, ...) must keep working on an environment where
+  // Paystack hasn't been configured yet. PaystackService throws a clear
+  // runtime error if a payment is actually attempted without these set,
+  // rather than the whole API refusing to start.
+  @IsOptional()
+  @IsString()
+  PAYSTACK_SECRET_KEY?: string;
+
+  @IsOptional()
+  @IsString()
+  PAYSTACK_PUBLIC_KEY?: string;
+
+  @IsOptional()
+  @IsString()
+  BUSINESS_NAME?: string;
+
+  @IsOptional()
+  @IsString()
+  BUSINESS_RC_NUMBER?: string;
+
+  @IsOptional()
+  @IsString()
+  BUSINESS_BANK_NAME?: string;
+
+  @IsOptional()
+  @IsString()
+  BUSINESS_ACCOUNT_NAME?: string;
+
+  @IsOptional()
+  @IsString()
+  BUSINESS_ACCOUNT_NUMBER?: string;
+
+  @IsOptional()
+  @IsString()
+  INVOICE_PREFIX?: string;
+
+  @IsOptional()
+  @IsString()
+  APP_PUBLIC_URL?: string;
 }
 
 export function validateEnv(config: Record<string, unknown>) {

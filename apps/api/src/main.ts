@@ -7,7 +7,13 @@ import * as cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // rawBody: true preserves the unparsed request body (req.rawBody, a
+  // Buffer) alongside the normal JSON-parsed @Body() — the Paystack webhook
+  // handler needs the exact raw bytes to verify the signature against
+  // (MONETISATION_BUILD_BRIEF.md §3.5: "if the framework parses JSON before
+  // you can hash it, configure a raw-body route" — this is that, done at
+  // the Nest application level rather than a route-specific middleware).
+  const app = await NestFactory.create(AppModule, { rawBody: true });
   const config = app.get(ConfigService);
 
   app.use(helmet());
