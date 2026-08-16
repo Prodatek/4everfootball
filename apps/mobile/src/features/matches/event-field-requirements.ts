@@ -28,4 +28,8 @@ export const EVENT_FIELD_REQUIREMENTS: Record<MatchEventType, EventFieldRequirem
   GOAL: "team-player-assist",
   PENALTY_SCORED: "team-player-assist",
   SUBSTITUTION: "team-player-sub",
+  // No client UI files these yet — see the comment on ALL_MATCH_EVENT_TYPES
+  // in packages/shared/src/match-event.ts.
+  CORRECTION: "none",
+  NOTE: "none",
 };

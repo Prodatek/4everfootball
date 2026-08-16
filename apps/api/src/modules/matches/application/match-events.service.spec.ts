@@ -1,5 +1,5 @@
 import { Test } from '@nestjs/testing';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException } from '@nestjs/common';
 import { MatchEventsService } from './match-events.service';
 import { MATCH_EVENT_REPOSITORY } from '../domain/match-event.repository';
 import type { MatchEventRepository } from '../domain/match-event.repository';
@@ -7,10 +7,12 @@ import { FixturesService } from '../../fixtures/application/fixtures.service';
 import { PlayersService } from '../../players/application/players.service';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { MatchEventsGateway } from '../infrastructure/match-events.gateway';
+import { seedHash } from '../domain/event-hash-chain';
 
 const FIXTURE_ID = 'fixture-1';
 const HOME_TEAM_ID = 'home-team';
 const AWAY_TEAM_ID = 'away-team';
+const RECORDED_BY = 'user-1';
 
 function fakeFixture() {
   return {
@@ -24,13 +26,22 @@ function fakeFixture() {
 }
 
 function fakeEvent(overrides: Partial<Record<string, unknown>> = {}) {
-  return {
+  const props = {
     id: 'event-1',
     fixtureId: FIXTURE_ID,
     type: 'GOAL',
     teamId: HOME_TEAM_ID,
-    toPublic: () => ({ id: 'event-1', ...overrides }),
+    correctsEventId: null,
+    metadata: null,
+    hash: 'some-hash',
     ...overrides,
+  };
+  return {
+    ...props,
+    fixtureId: props.fixtureId,
+    hash: props.hash,
+    toPublic: () => props,
+    toHashable: () => props,
   };
 }
 
@@ -50,8 +61,8 @@ describe('MatchEventsService', () => {
             findByFixtureId: jest.fn().mockResolvedValue([]),
             findById: jest.fn(),
             findByClientEventId: jest.fn().mockResolvedValue(null),
+            findLastByFixtureId: jest.fn().mockResolvedValue(null),
             create: jest.fn(),
-            delete: jest.fn(),
           },
         },
         {
@@ -69,7 +80,7 @@ describe('MatchEventsService', () => {
           provide: PrismaService,
           useValue: {
             $transaction: jest.fn((callback: (tx: unknown) => unknown) =>
-              callback({}),
+              callback({ $queryRaw: jest.fn().mockResolvedValue(undefined) }),
             ),
           },
         },
@@ -101,7 +112,11 @@ describe('MatchEventsService', () => {
     const existing = fakeEvent();
     repository.findByClientEventId.mockResolvedValue(existing as never);
 
-    const result = await service.recordEvent(FIXTURE_ID, baseDto as never);
+    const result = await service.recordEvent(
+      FIXTURE_ID,
+      baseDto as never,
+      RECORDED_BY,
+    );
 
     expect(result).toEqual(existing.toPublic());
     expect(repository.create).not.toHaveBeenCalled();
@@ -109,10 +124,11 @@ describe('MatchEventsService', () => {
 
   it("rejects a teamId that isn't one of the two fixture teams", async () => {
     await expect(
-      service.recordEvent(FIXTURE_ID, {
-        ...baseDto,
-        teamId: 'some-other-team',
-      } as never),
+      service.recordEvent(
+        FIXTURE_ID,
+        { ...baseDto, teamId: 'some-other-team' } as never,
+        RECORDED_BY,
+      ),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(repository.create).not.toHaveBeenCalled();
   });
@@ -124,10 +140,11 @@ describe('MatchEventsService', () => {
     } as never);
 
     await expect(
-      service.recordEvent(FIXTURE_ID, {
-        ...baseDto,
-        playerId: 'player-1',
-      } as never),
+      service.recordEvent(
+        FIXTURE_ID,
+        { ...baseDto, playerId: 'player-1' } as never,
+        RECORDED_BY,
+      ),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(repository.create).not.toHaveBeenCalled();
   });
@@ -136,10 +153,11 @@ describe('MatchEventsService', () => {
     repository.create.mockResolvedValue(fakeEvent() as never);
     repository.findByFixtureId.mockResolvedValue([fakeEvent()] as never);
 
-    await service.recordEvent(FIXTURE_ID, {
-      ...baseDto,
-      type: 'KICKOFF',
-    } as never);
+    await service.recordEvent(
+      FIXTURE_ID,
+      { ...baseDto, type: 'KICKOFF' } as never,
+      RECORDED_BY,
+    );
 
     expect(fixturesService.applyMatchEngineUpdate).toHaveBeenCalledWith(
       FIXTURE_ID,
@@ -154,10 +172,11 @@ describe('MatchEventsService', () => {
     );
     repository.findByFixtureId.mockResolvedValue([] as never);
 
-    await service.recordEvent(FIXTURE_ID, {
-      ...baseDto,
-      type: 'FULL_TIME',
-    } as never);
+    await service.recordEvent(
+      FIXTURE_ID,
+      { ...baseDto, type: 'FULL_TIME' } as never,
+      RECORDED_BY,
+    );
 
     expect(fixturesService.applyMatchEngineUpdate).toHaveBeenCalledWith(
       FIXTURE_ID,
@@ -166,34 +185,161 @@ describe('MatchEventsService', () => {
     );
   });
 
-  it('recomputes the score from the remaining events after a delete', async () => {
-    repository.findById.mockResolvedValue(fakeEvent() as never);
-    // After deletion, only an away-team goal remains.
-    repository.findByFixtureId.mockResolvedValue([
-      fakeEvent({ id: 'event-2', teamId: AWAY_TEAM_ID }),
-    ] as never);
+  describe('hash chaining on insert', () => {
+    it('seeds prevHash from sha256(fixtureId) when this is the first event on the fixture', async () => {
+      repository.findLastByFixtureId.mockResolvedValue(null);
+      repository.create.mockResolvedValue(fakeEvent() as never);
 
-    await service.deleteEvent(FIXTURE_ID, 'event-1');
+      await service.recordEvent(FIXTURE_ID, baseDto as never, RECORDED_BY);
 
-    expect(repository.delete).toHaveBeenCalledWith(
-      'event-1',
-      expect.anything(),
-    );
-    expect(fixturesService.applyMatchEngineUpdate).toHaveBeenCalledWith(
-      FIXTURE_ID,
-      { homeScore: 0, awayScore: 1, status: undefined },
-      expect.anything(),
-    );
+      expect(repository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ prevHash: seedHash(FIXTURE_ID) }),
+        expect.anything(),
+      );
+    });
+
+    it('chains prevHash from the previous event when one already exists', async () => {
+      repository.findLastByFixtureId.mockResolvedValue(
+        fakeEvent({ hash: 'prior-event-hash' }) as never,
+      );
+      repository.create.mockResolvedValue(fakeEvent() as never);
+
+      await service.recordEvent(FIXTURE_ID, baseDto as never, RECORDED_BY);
+
+      expect(repository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ prevHash: 'prior-event-hash' }),
+        expect.anything(),
+      );
+    });
+
+    it('always includes a non-empty hash and the recording user', async () => {
+      repository.create.mockResolvedValue(fakeEvent() as never);
+
+      await service.recordEvent(FIXTURE_ID, baseDto as never, RECORDED_BY);
+
+      expect(repository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          hash: expect.any(String),
+          recordedById: RECORDED_BY,
+        }),
+        expect.anything(),
+      );
+      const [[createArg]] = repository.create.mock.calls;
+      expect((createArg as { hash: string }).hash.length).toBeGreaterThan(0);
+    });
   });
 
-  it('throws NotFoundException when deleting an event that belongs to a different fixture', async () => {
-    repository.findById.mockResolvedValue(
-      fakeEvent({ fixtureId: 'different-fixture' }) as never,
-    );
+  describe('corrections', () => {
+    it('rejects a CORRECTION event missing correctsEventId or correctionReason', async () => {
+      await expect(
+        service.recordEvent(
+          FIXTURE_ID,
+          { ...baseDto, type: 'CORRECTION' } as never,
+          RECORDED_BY,
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(repository.create).not.toHaveBeenCalled();
+    });
 
-    await expect(
-      service.deleteEvent(FIXTURE_ID, 'event-1'),
-    ).rejects.toBeInstanceOf(NotFoundException);
-    expect(repository.delete).not.toHaveBeenCalled();
+    it("rejects a CORRECTION whose correctsEventId doesn't exist on this fixture", async () => {
+      repository.findById.mockResolvedValue(null);
+
+      await expect(
+        service.recordEvent(
+          FIXTURE_ID,
+          {
+            ...baseDto,
+            type: 'CORRECTION',
+            correctsEventId: 'missing-event',
+            correctionReason: 'Wrong scorer',
+          } as never,
+          RECORDED_BY,
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(repository.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects a CORRECTION pointing at an event from a DIFFERENT fixture', async () => {
+      repository.findById.mockResolvedValue(
+        fakeEvent({ fixtureId: 'other-fixture' }) as never,
+      );
+
+      await expect(
+        service.recordEvent(
+          FIXTURE_ID,
+          {
+            ...baseDto,
+            type: 'CORRECTION',
+            correctsEventId: 'event-1',
+            correctionReason: 'Wrong scorer',
+          } as never,
+          RECORDED_BY,
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(repository.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects correctsEventId/correctionReason on a non-CORRECTION event', async () => {
+      await expect(
+        service.recordEvent(
+          FIXTURE_ID,
+          { ...baseDto, correctsEventId: 'event-1' } as never,
+          RECORDED_BY,
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(repository.create).not.toHaveBeenCalled();
+    });
+
+    it('accepts a well-formed CORRECTION', async () => {
+      repository.findById.mockResolvedValue(fakeEvent() as never);
+      repository.create.mockResolvedValue(
+        fakeEvent({ type: 'CORRECTION' }) as never,
+      );
+
+      await service.recordEvent(
+        FIXTURE_ID,
+        {
+          ...baseDto,
+          type: 'CORRECTION',
+          correctsEventId: 'event-1',
+          correctionReason: 'Wrong scorer',
+        } as never,
+        RECORDED_BY,
+      );
+
+      expect(repository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          correctsEventId: 'event-1',
+          correctionReason: 'Wrong scorer',
+        }),
+        expect.anything(),
+      );
+    });
+  });
+
+  describe('verifyChain', () => {
+    it('reports valid for a fixture with no events', async () => {
+      repository.findByFixtureId.mockResolvedValue([]);
+
+      const result = await service.verifyChain(FIXTURE_ID);
+
+      expect(result.valid).toBe(true);
+      expect(result.events).toBe(0);
+      expect(result.verifiedAt).toEqual(expect.any(String));
+    });
+
+    it('reports invalid when a stored hash no longer matches its recomputed value', async () => {
+      const tampered = fakeEvent({
+        prevHash: seedHash(FIXTURE_ID),
+        hash: 'not-the-real-hash',
+        minute: 5,
+      });
+      repository.findByFixtureId.mockResolvedValue([tampered] as never);
+
+      const result = await service.verifyChain(FIXTURE_ID);
+
+      expect(result.valid).toBe(false);
+      expect(result.brokenAtEventId).toBe('event-1');
+    });
   });
 });

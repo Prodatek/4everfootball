@@ -20,7 +20,8 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev"
+    "prisma:migrate": "prisma migrate dev",
+    "rebuild-check": "ts-node -r tsconfig-paths/register scripts/rebuild-from-events.ts"
   },
   "dependencies": {
     "@4ef/shared": "workspace:*",

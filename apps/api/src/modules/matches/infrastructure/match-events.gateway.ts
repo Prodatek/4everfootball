@@ -42,11 +42,14 @@ export class MatchEventsGateway {
     this.server?.to(fixtureRoom(fixtureId)).emit('match-event', event);
   }
 
-  broadcastEventRemoved(fixtureId: string, eventId: string) {
-    this.server
-      ?.to(fixtureRoom(fixtureId))
-      .emit('match-event-removed', { eventId });
-  }
+  // No broadcastEventRemoved: match_events is append-only now, so there's no
+  // longer a delete flow to broadcast. Both web and mobile clients still
+  // have a harmless, never-firing `match-event-removed` listener in
+  // use-live-match.ts — left in place rather than touched in this pass,
+  // since it costs nothing to leave and corrections will likely want their
+  // own broadcast event (e.g. `match-event-corrected`) once client UI exists
+  // to show them, at which point that listener code gets reused, not
+  // resurrected from scratch.
 
   broadcastState(fixtureId: string, state: unknown) {
     this.server?.to(fixtureRoom(fixtureId)).emit('match-state', state);

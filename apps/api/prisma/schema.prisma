@@ -25,24 +25,24 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  refreshTokens RefreshToken[]
+  refreshTokens       RefreshToken[]
   recordedMatchEvents MatchEvent[]
-  newsArticles NewsArticle[]
-  uploadedMedia Media[]
+  newsArticles        NewsArticle[]
+  uploadedMedia       Media[]
 
   @@map("users")
 }
 
 model RefreshToken {
-  id            String    @id @default(uuid())
-  userId        String
-  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tokenHash     String    @unique
-  expiresAt     DateTime
-  revokedAt     DateTime?
-  replacedById  String?
-  createdAt     DateTime  @default(now())
-  createdByIp   String?
+  id           String    @id @default(uuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash    String    @unique
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  replacedById String?
+  createdAt    DateTime  @default(now())
+  createdByIp  String?
 
   @@index([userId])
   @@map("refresh_tokens")
@@ -61,11 +61,11 @@ model Team {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  players Player[]
+  players            Player[]
   competitionEntries CompetitionEntry[]
-  homeFixtures Fixture[] @relation("HomeFixtures")
-  awayFixtures Fixture[] @relation("AwayFixtures")
-  matchEvents  MatchEvent[]
+  homeFixtures       Fixture[]          @relation("HomeFixtures")
+  awayFixtures       Fixture[]          @relation("AwayFixtures")
+  matchEvents        MatchEvent[]
 
   @@index([country])
   @@map("teams")
@@ -85,20 +85,20 @@ enum PreferredFoot {
 }
 
 model Player {
-  id             String          @id @default(uuid())
-  firstName      String
-  lastName       String
-  slug           String          @unique
-  dateOfBirth    DateTime?
-  nationality    String?
-  position       PlayerPosition?
-  shirtNumber    Int?
-  heightCm       Int?
-  preferredFoot  PreferredFoot?
-  photoUrl       String?
-  isActive       Boolean         @default(true)
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  id            String          @id @default(uuid())
+  firstName     String
+  lastName      String
+  slug          String          @unique
+  dateOfBirth   DateTime?
+  nationality   String?
+  position      PlayerPosition?
+  shirtNumber   Int?
+  heightCm      Int?
+  preferredFoot PreferredFoot?
+  photoUrl      String?
+  isActive      Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
 
   teamId String?
   team   Team?   @relation(fields: [teamId], references: [id], onDelete: SetNull)
@@ -177,6 +177,10 @@ model Fixture {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
+  // The onDelete behavior lives on MatchEvent.fixture below (Restrict, not
+  // Cascade): a fixture with recorded events can't be deleted out from under
+  // its own immutable log. FixturesService.remove() checks this up front and
+  // throws a clear error before Postgres ever would.
   matchEvents MatchEvent[]
 
   @@index([competitionId])
@@ -207,13 +211,25 @@ enum MatchEventType {
   OFFSIDE
   HALF_TIME
   FULL_TIME
+  // Append-only correction mechanism — see the comment in
+  // packages/shared/src/match-event.ts.
+  CORRECTION
+  NOTE
 }
 
 model MatchEvent {
   id             String         @id @default(uuid())
+  // Deliberately still a single global autoincrement, not renumbered to be
+  // per-fixture (brief's schema wants unique(match_id, seq)). A global
+  // monotonic value, filtered by fixtureId, still gives an unambiguous,
+  // tamper-detectable per-match order — the same guarantee — without a live
+  // renumbering migration on a table with real rows and concurrent writers.
+  // Flagged in the Phase 1 report as a deliberate deviation, not an oversight.
   sequence       Int            @unique @default(autoincrement())
   fixtureId      String
-  fixture        Fixture        @relation(fields: [fixtureId], references: [id], onDelete: Cascade)
+  // Restrict, not Cascade (was Cascade before Phase 1): deleting a fixture
+  // must not silently destroy its immutable event history.
+  fixture        Fixture        @relation(fields: [fixtureId], references: [id], onDelete: Restrict)
   type           MatchEventType
   minute         Int
   stoppageMinute Int?
@@ -225,12 +241,40 @@ model MatchEvent {
   assistPlayer   Player?        @relation("MatchEventAssist", fields: [assistPlayerId], references: [id], onDelete: SetNull)
   metadata       Json?
   clientEventId  String
-  recordedById   String?
-  recordedBy     User?          @relation(fields: [recordedById], references: [id], onDelete: SetNull)
-  createdAt      DateTime       @default(now())
+  // NOT NULL (was nullable before Phase 1) + Restrict (was SetNull): a
+  // recorded event must always carry who recorded it, permanently — you
+  // can't delete your way out of attribution. System-generated events (the
+  // auto-kickoff job) are attributed to a seeded system user, not left null.
+  recordedById   String
+  recordedBy     User           @relation(fields: [recordedById], references: [id], onDelete: Restrict)
+
+  // Corrections: a mistake is a new CORRECTION-type row pointing back at the
+  // event it corrects, never an edit or delete of the original. Only
+  // meaningful when type = CORRECTION; enforced in MatchEventsService, not
+  // at the DB level (Prisma/Postgres CHECK constraints referencing another
+  // column's value by a fixed comparison work here, but conditional
+  // "required if type=X" rules don't map cleanly to a CHECK — kept as
+  // application-layer validation, same as the rest of this DTO's shape
+  // rules).
+  correctsEventId  String?
+  correctsEvent    MatchEvent?  @relation("MatchEventCorrections", fields: [correctsEventId], references: [id], onDelete: Restrict)
+  correctedBy      MatchEvent[] @relation("MatchEventCorrections")
+  correctionReason String?
+
+  // Hash chain — the actual tamper-evidence mechanism. hash = sha256(prevHash
+  // + canonicalJson(row minus hash)); prevHash = hash of the previous event
+  // for this fixture (by sequence order), or sha256(fixtureId) seeding the
+  // first event of a match. Computed once at insert time in
+  // MatchEventsService, never recomputed or edited after — see
+  // src/modules/matches/domain/event-hash-chain.ts.
+  prevHash String
+  hash     String
+
+  createdAt DateTime @default(now())
 
   @@unique([fixtureId, clientEventId])
   @@index([fixtureId])
+  @@index([correctsEventId])
   @@map("match_events")
 }
 

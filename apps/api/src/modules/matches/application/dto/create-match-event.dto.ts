@@ -5,9 +5,12 @@ import {
   IsInt,
   IsObject,
   IsOptional,
+  IsString,
   IsUUID,
   Max,
+  MaxLength,
   Min,
+  MinLength,
 } from 'class-validator';
 
 export class CreateMatchEventDto {
@@ -57,4 +60,24 @@ export class CreateMatchEventDto {
   @IsOptional()
   @IsObject()
   metadata?: Record<string, unknown>;
+
+  @ApiPropertyOptional({
+    description:
+      'Required (and only meaningful) when type = CORRECTION: the event this one corrects. ' +
+      'The corrected event is never edited or removed — it stays visible, this just records ' +
+      'that a later event retracts its effect on the derived score/status.',
+  })
+  @IsOptional()
+  @IsUUID()
+  correctsEventId?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Required when type = CORRECTION: why the corrected event was wrong.',
+  })
+  @IsOptional()
+  @IsString()
+  @MinLength(3)
+  @MaxLength(500)
+  correctionReason?: string;
 }

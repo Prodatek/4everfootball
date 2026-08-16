@@ -5,14 +5,18 @@ import { FIXTURE_REPOSITORY } from '../domain/fixture.repository';
 import type { FixtureRepository } from '../domain/fixture.repository';
 import { TeamsService } from '../../teams/application/teams.service';
 import { CompetitionsService } from '../../competitions/application/competitions.service';
+import { PrismaService } from '../../../common/prisma/prisma.service';
 
 describe('FixturesService', () => {
   let service: FixturesService;
   let repository: jest.Mocked<FixtureRepository>;
   let teamsService: jest.Mocked<TeamsService>;
   let competitionsService: jest.Mocked<CompetitionsService>;
+  let prisma: { matchEvent: { count: jest.Mock } };
 
   beforeEach(async () => {
+    prisma = { matchEvent: { count: jest.fn().mockResolvedValue(0) } };
+
     const moduleRef = await Test.createTestingModule({
       providers: [
         FixturesService,
@@ -31,6 +35,7 @@ describe('FixturesService', () => {
           provide: CompetitionsService,
           useValue: { exists: jest.fn(), isTeamEntered: jest.fn() },
         },
+        { provide: PrismaService, useValue: prisma },
       ],
     }).compile();
 
@@ -100,5 +105,35 @@ describe('FixturesService', () => {
       NotFoundException,
     );
     expect(repository.update).not.toHaveBeenCalled();
+  });
+
+  describe('remove', () => {
+    it('throws NotFoundException for a fixture that does not exist', async () => {
+      repository.findById.mockResolvedValue(null);
+
+      await expect(service.remove('missing')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      expect(repository.delete).not.toHaveBeenCalled();
+    });
+
+    it('deletes a fixture with no recorded events', async () => {
+      repository.findById.mockResolvedValue({ id: 'fixture-1' } as never);
+      prisma.matchEvent.count.mockResolvedValue(0);
+
+      await service.remove('fixture-1');
+
+      expect(repository.delete).toHaveBeenCalledWith('fixture-1');
+    });
+
+    it('refuses to delete a fixture that has recorded events, with a clear error rather than a raw FK violation', async () => {
+      repository.findById.mockResolvedValue({ id: 'fixture-1' } as never);
+      prisma.matchEvent.count.mockResolvedValue(3);
+
+      await expect(service.remove('fixture-1')).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(repository.delete).not.toHaveBeenCalled();
+    });
   });
 });

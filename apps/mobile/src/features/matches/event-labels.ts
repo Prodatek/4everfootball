@@ -21,4 +21,6 @@ export const MATCH_EVENT_LABELS: Record<MatchEventType, string> = {
   OFFSIDE: "Offside",
   HALF_TIME: "Half time",
   FULL_TIME: "Full time",
+  CORRECTION: "Correction",
+  NOTE: "Note",
 };

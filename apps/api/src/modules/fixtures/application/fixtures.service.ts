@@ -9,6 +9,7 @@ import {
   paginate,
   type PaginatedResult,
 } from '../../../common/dto/paginated-result';
+import { PrismaService } from '../../../common/prisma/prisma.service';
 import type { PrismaTransactionClient } from '../../../common/prisma/prisma-transaction.type';
 import { TeamsService } from '../../teams/application/teams.service';
 import { CompetitionsService } from '../../competitions/application/competitions.service';
@@ -25,6 +26,12 @@ export class FixturesService {
     private readonly fixtureRepository: FixtureRepository,
     private readonly teamsService: TeamsService,
     private readonly competitionsService: CompetitionsService,
+    // Queried directly rather than via MatchEventRepository/MatchesModule —
+    // MatchesModule already depends on FixturesModule (MatchEventsService
+    // takes FixturesService), so depending back would be circular. A raw
+    // count() against the shared PrismaService avoids that without
+    // introducing a new cross-feature-module dependency.
+    private readonly prisma: PrismaService,
   ) {}
 
   async list(query: QueryFixturesDto): Promise<PaginatedResult<unknown>> {
@@ -122,6 +129,20 @@ export class FixturesService {
 
     if (!existing) {
       throw new NotFoundException('Fixture not found');
+    }
+
+    // match_events.fixtureId now has an ON DELETE RESTRICT foreign key (was
+    // CASCADE before Phase 1), so Postgres itself would refuse this anyway —
+    // this check exists to turn that into a clear 400 instead of a raw FK
+    // violation leaking out of the API.
+    const eventCount = await this.prisma.matchEvent.count({
+      where: { fixtureId: id },
+    });
+
+    if (eventCount > 0) {
+      throw new BadRequestException(
+        'This fixture has recorded match events and cannot be deleted — its event log is permanent.',
+      );
     }
 
     await this.fixtureRepository.delete(id);

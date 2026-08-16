@@ -5,6 +5,10 @@ import type { MatchEventEntity } from './match-event.entity';
 export const MATCH_EVENT_REPOSITORY = Symbol('MATCH_EVENT_REPOSITORY');
 
 export interface CreateMatchEventInput {
+  // id/createdAt/prevHash/hash are generated in MatchEventsService (not left
+  // to DB defaults) so the exact values that go into the hash are the exact
+  // values that get stored — see event-hash-chain.ts.
+  id: string;
   fixtureId: string;
   type: MatchEventType;
   minute: number;
@@ -14,7 +18,12 @@ export interface CreateMatchEventInput {
   assistPlayerId?: string;
   metadata?: Prisma.InputJsonValue;
   clientEventId: string;
-  recordedById?: string;
+  correctsEventId?: string;
+  correctionReason?: string;
+  recordedById: string;
+  createdAt: Date;
+  prevHash: string;
+  hash: string;
 }
 
 export interface MatchEventRepository {
@@ -26,6 +35,11 @@ export interface MatchEventRepository {
   findByClientEventId(
     fixtureId: string,
     clientEventId: string,
+  ): Promise<MatchEventEntity | null>;
+  /** Most recent event for a fixture by sequence — the tail of its hash chain. */
+  findLastByFixtureId(
+    fixtureId: string,
+    tx?: PrismaTransactionClient,
   ): Promise<MatchEventEntity | null>;
   /** Events from FINISHED fixtures in a competition — the basis for top scorers/assists. */
   findByCompetitionId(
@@ -41,5 +55,8 @@ export interface MatchEventRepository {
     input: CreateMatchEventInput,
     tx?: PrismaTransactionClient,
   ): Promise<MatchEventEntity>;
-  delete(id: string, tx?: PrismaTransactionClient): Promise<void>;
+  // No delete(). match_events is append-only — see migration
+  // 1_event_log_immutability, which also enforces this at the database
+  // level so removing this method is a real guarantee, not just an API
+  // that happens not to be called.
 }

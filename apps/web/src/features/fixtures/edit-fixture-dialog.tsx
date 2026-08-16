@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
 import type { Fixture } from "@4ef/shared";
-import { ALL_FIXTURE_STATUSES } from "@4ef/shared";
+import { ADMIN_SETTABLE_FIXTURE_STATUSES } from "@4ef/shared";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -39,14 +39,20 @@ function toDatetimeLocal(iso: string): string {
   return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
 }
 
+function isAdminSettableStatus(
+  status: Fixture["status"] | undefined,
+): status is EditFixtureFormValues["status"] {
+  return (ADMIN_SETTABLE_FIXTURE_STATUSES as readonly string[]).includes(
+    status ?? "",
+  );
+}
+
 function toDefaultValues(fixture: Fixture | null): EditFixtureFormValues {
   return {
     kickoffAt: fixture ? toDatetimeLocal(fixture.kickoffAt) : "",
     venueName: fixture?.venueName ?? "",
     matchday: fixture?.matchday ?? "",
-    status: fixture?.status ?? "SCHEDULED",
-    homeScore: fixture?.homeScore ?? "",
-    awayScore: fixture?.awayScore ?? "",
+    status: isAdminSettableStatus(fixture?.status) ? fixture.status : "SCHEDULED",
   };
 }
 
@@ -74,20 +80,22 @@ export function EditFixtureDialog({
     }
   }, [open, fixture, reset]);
 
+  // LIVE/FINISHED are match-engine transitions now, not admin-editable —
+  // record a KICKOFF/FULL_TIME event (or a CORRECTION) to change them
+  // instead. Disabling the field here rather than hiding it so it's obvious
+  // *why* status can't be touched on a live/finished fixture, not just that
+  // it's missing.
+  const statusIsEngineControlled = fixture ? !isAdminSettableStatus(fixture.status) : false;
+
   async function handleFormSubmit(values: EditFixtureFormValues) {
     await onSubmit({
       kickoffAt: new Date(values.kickoffAt).toISOString(),
       venueName: values.venueName || undefined,
       matchday: values.matchday || undefined,
-      status: values.status as FixtureUpdateInput["status"],
-      homeScore:
-        values.homeScore === "" || values.homeScore === undefined
-          ? undefined
-          : Number(values.homeScore),
-      awayScore:
-        values.awayScore === "" || values.awayScore === undefined
-          ? undefined
-          : Number(values.awayScore),
+      // Omitted entirely (not just left at its default) when the current
+      // status is engine-controlled, so submitting this form never
+      // accidentally reverts a LIVE/FINISHED fixture back to SCHEDULED.
+      status: statusIsEngineControlled ? undefined : values.status,
     });
   }
 
@@ -110,35 +118,30 @@ export function EditFixtureDialog({
 
           <div className="flex flex-col gap-2">
             <Label>Status</Label>
-            <Controller
-              control={control}
-              name="status"
-              render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ALL_FIXTURE_STATUSES.map((status) => (
-                      <SelectItem key={status} value={status}>
-                        {status}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="homeScore">Home score</Label>
-              <Input id="homeScore" type="number" {...register("homeScore")} />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="awayScore">Away score</Label>
-              <Input id="awayScore" type="number" {...register("awayScore")} />
-            </div>
+            {statusIsEngineControlled ? (
+              <p className="text-sm text-muted-foreground">
+                {fixture?.status} — set automatically by recorded match events, not editable here.
+              </p>
+            ) : (
+              <Controller
+                control={control}
+                name="status"
+                render={({ field }) => (
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ADMIN_SETTABLE_FIXTURE_STATUSES.map((status) => (
+                        <SelectItem key={status} value={status}>
+                          {status}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">

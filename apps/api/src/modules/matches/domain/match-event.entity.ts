@@ -21,6 +21,11 @@ export interface MatchEventProps {
   assistPlayer: MatchEventPlayerSummary | null;
   metadata: Prisma.JsonValue | null;
   clientEventId: string;
+  correctsEventId: string | null;
+  correctionReason: string | null;
+  recordedById: string;
+  prevHash: string;
+  hash: string;
   createdAt: Date;
 }
 
@@ -41,6 +46,32 @@ export class MatchEventEntity {
 
   get teamId() {
     return this.props.teamId;
+  }
+
+  get hash() {
+    return this.props.hash;
+  }
+
+  /** The exact fields event-hash-chain.ts's HashableEventFields expects — nothing more. */
+  toHashable() {
+    return {
+      id: this.props.id,
+      fixtureId: this.props.fixtureId,
+      type: this.props.type as string,
+      minute: this.props.minute,
+      stoppageMinute: this.props.stoppageMinute,
+      teamId: this.props.teamId,
+      playerId: this.props.playerId,
+      assistPlayerId: this.props.assistPlayerId,
+      metadata: this.props.metadata,
+      clientEventId: this.props.clientEventId,
+      correctsEventId: this.props.correctsEventId,
+      correctionReason: this.props.correctionReason,
+      recordedById: this.props.recordedById,
+      createdAt: this.props.createdAt,
+      prevHash: this.props.prevHash,
+      hash: this.props.hash,
+    };
   }
 
   toPublic() {

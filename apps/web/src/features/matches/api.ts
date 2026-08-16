@@ -35,6 +35,13 @@ export async function recordMatchEvent(
   return data;
 }
 
-export async function deleteMatchEvent(fixtureId: string, eventId: string): Promise<void> {
-  await apiClient.delete(`/fixtures/${fixtureId}/events/${eventId}`);
+export async function verifyMatchEvents(fixtureId: string) {
+  const { data } = await apiClient.get(`/fixtures/${fixtureId}/verify`);
+  return data;
 }
+
+// No deleteMatchEvent — match_events is append-only (Phase 1,
+// MONETISATION_BUILD_BRIEF.md). This function existed but was never called
+// from any UI; DELETE /fixtures/:id/events/:eventId no longer exists on the
+// API. A mistake is fixed with a CORRECTION event via recordMatchEvent
+// above, not a delete.

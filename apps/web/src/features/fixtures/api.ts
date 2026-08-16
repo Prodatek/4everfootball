@@ -1,4 +1,9 @@
-import type { Fixture, FixtureStatus, PaginatedResult } from "@4ef/shared";
+import type {
+  AdminSettableFixtureStatus,
+  Fixture,
+  FixtureStatus,
+  PaginatedResult,
+} from "@4ef/shared";
 import { apiClient } from "@/lib/api-client";
 
 export interface FixturesQuery {
@@ -26,9 +31,10 @@ export interface FixtureUpdateInput {
   kickoffAt?: string;
   venueName?: string;
   matchday?: string;
-  status?: FixtureStatus;
-  homeScore?: number;
-  awayScore?: number;
+  // LIVE/FINISHED aren't admin-settable — see ADMIN_SETTABLE_FIXTURE_STATUSES.
+  // No homeScore/awayScore — a wrong score is fixed with a CORRECTION event
+  // now, not a direct field edit (Phase 1, MONETISATION_BUILD_BRIEF.md).
+  status?: AdminSettableFixtureStatus;
 }
 
 export async function fetchFixtures(

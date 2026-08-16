@@ -2,6 +2,7 @@ import { Test } from '@nestjs/testing';
 import { AutoKickoffService } from './auto-kickoff.service';
 import { FixturesService } from '../../fixtures/application/fixtures.service';
 import { MatchEventsService } from './match-events.service';
+import { SYSTEM_USER_ID } from '../../../common/constants/system-user';
 
 function paginated(data: unknown[]) {
   return {
@@ -57,16 +58,16 @@ describe('AutoKickoffService', () => {
     await service.checkDueFixtures();
 
     expect(matchEventsService.recordEvent).toHaveBeenCalledTimes(2);
-    expect(matchEventsService.recordEvent).toHaveBeenCalledWith('fixture-1', {
-      clientEventId: 'auto-kickoff:fixture-1',
-      type: 'KICKOFF',
-      minute: 0,
-    });
-    expect(matchEventsService.recordEvent).toHaveBeenCalledWith('fixture-2', {
-      clientEventId: 'auto-kickoff:fixture-2',
-      type: 'KICKOFF',
-      minute: 0,
-    });
+    expect(matchEventsService.recordEvent).toHaveBeenCalledWith(
+      'fixture-1',
+      { clientEventId: 'auto-kickoff:fixture-1', type: 'KICKOFF', minute: 0 },
+      SYSTEM_USER_ID,
+    );
+    expect(matchEventsService.recordEvent).toHaveBeenCalledWith(
+      'fixture-2',
+      { clientEventId: 'auto-kickoff:fixture-2', type: 'KICKOFF', minute: 0 },
+      SYSTEM_USER_ID,
+    );
   });
 
   it('continues past a fixture whose recordEvent call throws', async () => {
@@ -83,6 +84,7 @@ describe('AutoKickoffService', () => {
     expect(matchEventsService.recordEvent).toHaveBeenCalledWith(
       'good-fixture',
       expect.objectContaining({ clientEventId: 'auto-kickoff:good-fixture' }),
+      SYSTEM_USER_ID,
     );
   });
 });

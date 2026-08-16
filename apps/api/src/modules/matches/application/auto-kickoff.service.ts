@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { FixtureStatus, MatchEventType } from '@prisma/client';
+import { SYSTEM_USER_ID } from '../../../common/constants/system-user';
 import { FixturesService } from '../../fixtures/application/fixtures.service';
 import { QueryFixturesDto } from '../../fixtures/application/dto/query-fixtures.dto';
 import { MatchEventsService } from './match-events.service';
@@ -39,11 +40,15 @@ export class AutoKickoffService {
         // Deterministic clientEventId: the unique (fixtureId, clientEventId)
         // constraint is what actually guarantees at-most-once here, not the
         // interval timing — safe even if two ticks overlap.
-        await this.matchEventsService.recordEvent(fixture.id, {
-          clientEventId: `auto-kickoff:${fixture.id}`,
-          type: MatchEventType.KICKOFF,
-          minute: 0,
-        });
+        await this.matchEventsService.recordEvent(
+          fixture.id,
+          {
+            clientEventId: `auto-kickoff:${fixture.id}`,
+            type: MatchEventType.KICKOFF,
+            minute: 0,
+          },
+          SYSTEM_USER_ID,
+        );
       } catch (error) {
         this.logger.error(
           `Auto-kickoff failed for fixture ${fixture.id}`,

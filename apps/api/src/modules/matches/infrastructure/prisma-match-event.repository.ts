@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import type { MatchEventType } from '@prisma/client';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import type { PrismaTransactionClient } from '../../../common/prisma/prisma-transaction.type';
@@ -55,6 +55,18 @@ export class PrismaMatchEventRepository implements MatchEventRepository {
     return record ? new MatchEventEntity(record) : null;
   }
 
+  async findLastByFixtureId(
+    fixtureId: string,
+    tx?: PrismaTransactionClient,
+  ): Promise<MatchEventEntity | null> {
+    const record = await (tx ?? this.prisma).matchEvent.findFirst({
+      where: { fixtureId },
+      include: matchEventInclude,
+      orderBy: { sequence: 'desc' },
+    });
+    return record ? new MatchEventEntity(record) : null;
+  }
+
   async findByCompetitionId(
     competitionId: string,
     types?: MatchEventType[],
@@ -97,13 +109,5 @@ export class PrismaMatchEventRepository implements MatchEventRepository {
       include: matchEventInclude,
     });
     return new MatchEventEntity(record);
-  }
-
-  async delete(id: string, tx?: PrismaTransactionClient): Promise<void> {
-    try {
-      await (tx ?? this.prisma).matchEvent.delete({ where: { id } });
-    } catch {
-      throw new NotFoundException('Match event not found');
-    }
   }
 }

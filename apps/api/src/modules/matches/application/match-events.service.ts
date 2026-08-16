@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import {
   BadRequestException,
   Inject,
@@ -10,6 +11,12 @@ import type { PrismaTransactionClient } from '../../../common/prisma/prisma-tran
 import { FixturesService } from '../../fixtures/application/fixtures.service';
 import { PlayersService } from '../../players/application/players.service';
 import { deriveScore } from '../domain/score-deriver';
+import {
+  computeEventHash,
+  seedHash,
+  verifyEventChain,
+  type ChainedEvent,
+} from '../domain/event-hash-chain';
 import { MATCH_EVENT_REPOSITORY } from '../domain/match-event.repository';
 import type { MatchEventRepository } from '../domain/match-event.repository';
 import { MatchEventsGateway } from '../infrastructure/match-events.gateway';
@@ -68,10 +75,26 @@ export class MatchEventsService {
     };
   }
 
+  /**
+   * Recomputes and verifies the full hash chain for a fixture by replaying
+   * every event from the seed. Public-facing (GET /fixtures/:id/verify) —
+   * this is a sales feature (brief §2.1), not an internal debug route, so
+   * the response shape is meant to be shown to a skeptical organiser, not
+   * just read by an engineer.
+   */
+  async verifyChain(fixtureId: string) {
+    await this.fixturesService.getById(fixtureId);
+    const events = await this.matchEventRepository.findByFixtureId(fixtureId);
+    const chained: ChainedEvent[] = events.map((event) => event.toHashable());
+    const result = verifyEventChain(fixtureId, chained);
+
+    return { ...result, verifiedAt: new Date().toISOString() };
+  }
+
   async recordEvent(
     fixtureId: string,
     dto: CreateMatchEventDto,
-    recordedById?: string,
+    recordedById: string,
   ) {
     const fixture = await this.fixturesService.getById(fixtureId);
 
@@ -115,20 +138,67 @@ export class MatchEventsService {
       }
     }
 
+    if (dto.type === 'CORRECTION') {
+      if (!dto.correctsEventId || !dto.correctionReason) {
+        throw new BadRequestException(
+          'CORRECTION events require both correctsEventId and correctionReason',
+        );
+      }
+
+      const corrected = await this.matchEventRepository.findById(
+        dto.correctsEventId,
+      );
+
+      if (!corrected || corrected.fixtureId !== fixtureId) {
+        throw new BadRequestException(
+          'correctsEventId must refer to an existing event on this fixture',
+        );
+      }
+    } else if (dto.correctsEventId || dto.correctionReason) {
+      throw new BadRequestException(
+        'correctsEventId/correctionReason are only valid on CORRECTION events',
+      );
+    }
+
+    const id = randomUUID();
+    const createdAt = new Date();
+
     const event = await this.prisma.$transaction(async (tx) => {
+      // Locking the fixture row for the duration of this transaction
+      // serializes concurrent writers on the SAME fixture (the brief's own
+      // "two recorders on the same match" scenario) so the prevHash read
+      // below can never race with another insert — without this, two scouts
+      // tapping at the same instant could both read the same "last hash"
+      // and produce two events pointing at the same prevHash, breaking the
+      // chain's linearity.
+      await tx.$queryRaw`SELECT id FROM "fixtures" WHERE id = ${fixtureId} FOR UPDATE`;
+
+      const last = await this.matchEventRepository.findLastByFixtureId(
+        fixtureId,
+        tx,
+      );
+      const prevHash = last ? last.hash : seedHash(fixtureId);
+
+      const hashableFields = {
+        id,
+        fixtureId,
+        type: dto.type,
+        minute: dto.minute,
+        stoppageMinute: dto.stoppageMinute ?? null,
+        teamId: dto.teamId ?? null,
+        playerId: dto.playerId ?? null,
+        assistPlayerId: dto.assistPlayerId ?? null,
+        metadata: (dto.metadata as Prisma.InputJsonValue | undefined) ?? null,
+        clientEventId: dto.clientEventId,
+        correctsEventId: dto.correctsEventId ?? null,
+        correctionReason: dto.correctionReason ?? null,
+        recordedById,
+        createdAt,
+      };
+      const hash = computeEventHash(prevHash, hashableFields);
+
       const created = await this.matchEventRepository.create(
-        {
-          fixtureId,
-          type: dto.type,
-          minute: dto.minute,
-          stoppageMinute: dto.stoppageMinute,
-          teamId: dto.teamId,
-          playerId: dto.playerId,
-          assistPlayerId: dto.assistPlayerId,
-          metadata: dto.metadata as Prisma.InputJsonValue | undefined,
-          clientEventId: dto.clientEventId,
-          recordedById,
-        },
+        { ...hashableFields, prevHash, hash },
         tx,
       );
 
@@ -150,29 +220,6 @@ export class MatchEventsService {
     return publicEvent;
   }
 
-  async deleteEvent(fixtureId: string, eventId: string) {
-    const fixture = await this.fixturesService.getById(fixtureId);
-    const event = await this.matchEventRepository.findById(eventId);
-
-    if (!event || event.fixtureId !== fixtureId) {
-      throw new NotFoundException('Match event not found');
-    }
-
-    await this.prisma.$transaction(async (tx) => {
-      await this.matchEventRepository.delete(eventId, tx);
-      await this.recomputeFixture(
-        fixtureId,
-        fixture.homeTeamId,
-        fixture.awayTeamId,
-        undefined,
-        tx,
-      );
-    });
-
-    this.gateway.broadcastEventRemoved(fixtureId, eventId);
-    this.gateway.broadcastState(fixtureId, await this.getLiveState(fixtureId));
-  }
-
   private async recomputeFixture(
     fixtureId: string,
     homeTeamId: string,
@@ -185,7 +232,16 @@ export class MatchEventsService {
       tx,
     );
     const { homeScore, awayScore } = deriveScore(
-      events.map((event) => ({ type: event.type, teamId: event.teamId })),
+      events.map((event) => {
+        const props = event.toPublic();
+        return {
+          id: props.id,
+          type: props.type,
+          teamId: props.teamId,
+          correctsEventId: props.correctsEventId,
+          metadata: props.metadata as Record<string, unknown> | null,
+        };
+      }),
       homeTeamId,
       awayTeamId,
     );
