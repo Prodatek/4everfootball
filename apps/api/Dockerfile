@@ -38,6 +38,15 @@ RUN pnpm --filter @4ef/api build
 
 FROM build AS prod-deps
 RUN pnpm --filter @4ef/api deploy --prod --legacy /prod/api
+# `pnpm deploy --prod` re-derives node_modules from the lockfile/store, which
+# does not carry over `prisma generate`'s output (it's written into
+# node_modules as a build-time side effect, not a tracked dependency) — so
+# the deployed client is present but ungenerated. Regenerate it in place:
+# prisma resolves @prisma/client by walking up from --schema's directory, so
+# pointing it at the copied schema here makes it write into
+# /prod/api/node_modules, exactly where the runtime image needs it.
+COPY apps/api/prisma /prod/api/prisma
+RUN pnpm --filter @4ef/api exec prisma generate --schema=/prod/api/prisma/schema.prisma
 
 FROM node:22 AS runtime
 ENV NODE_ENV=production
