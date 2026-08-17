@@ -21,14 +21,15 @@ ALTER TABLE "match_events"
 -- Password hash is an unusable placeholder (bcrypt can never produce this
 -- string) — this account has no password-based login path and isn't gated
 -- behind one; it exists purely as a foreign-key target for attribution.
-INSERT INTO "users" ("id", "email", "passwordHash", "displayName", "roles", "isActive")
+INSERT INTO "users" ("id", "email", "passwordHash", "displayName", "roles", "isActive", "updatedAt")
 VALUES (
   '00000000-0000-0000-0000-000000000001',
   'system@4everfootball.internal',
   'unusable:system-account-no-login',
   'System',
   ARRAY['SUPER_ADMIN']::"Role"[],
-  false
+  false,
+  CURRENT_TIMESTAMP
 )
 ON CONFLICT ("id") DO NOTHING;
 
