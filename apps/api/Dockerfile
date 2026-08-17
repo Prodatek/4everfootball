@@ -38,20 +38,30 @@ RUN pnpm --filter @4ef/api build
 
 FROM build AS prod-deps
 RUN pnpm --filter @4ef/api deploy --prod --legacy /prod/api
+
 # `pnpm deploy --prod` re-derives node_modules from the lockfile/store, which
 # does not carry over `prisma generate`'s output (it's written into
 # node_modules as a build-time side effect, not a tracked dependency) — so
-# the deployed client is present but ungenerated. Regenerate it in place:
+# the deployed client above is present but ungenerated. Regenerating it has
+# to happen in a stage forked straight off the untouched `build` stage, not
+# chained after the `deploy` RUN above: `deploy --prod` mutates the /repo
+# workspace it runs in as a side effect (same reason `prod-deps` itself is
+# split off from `build`, see the top-of-file note), so a `pnpm exec` run
+# afterward in that same stage finds a workspace pnpm thinks is out of sync
+# and tries to non-interactively self-heal via `install --production`, which
+# aborts for lack of a TTY.
+FROM build AS prisma-regen
+COPY --from=prod-deps /prod/api /prod/api
+COPY apps/api/prisma /prod/api/prisma
 # prisma resolves @prisma/client by walking up from --schema's directory, so
 # pointing it at the copied schema here makes it write into
 # /prod/api/node_modules, exactly where the runtime image needs it.
-COPY apps/api/prisma /prod/api/prisma
 RUN pnpm --filter @4ef/api exec prisma generate --schema=/prod/api/prisma/schema.prisma
 
 FROM node:22 AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
-COPY --from=prod-deps /prod/api ./
+COPY --from=prisma-regen /prod/api ./
 COPY --from=build /repo/apps/api/prisma ./prisma
 EXPOSE 4000
 CMD ["node", "dist/main.js"]
