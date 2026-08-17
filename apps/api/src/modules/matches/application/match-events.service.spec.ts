@@ -59,7 +59,7 @@ describe('MatchEventsService', () => {
   let standingsService: jest.Mocked<StandingsService>;
   let prisma: {
     playerRegistration: { findUnique: jest.Mock };
-    fixture: { findUnique: jest.Mock; count: jest.Mock };
+    fixture: { findUnique: jest.Mock; count: jest.Mock; update: jest.Mock };
     matchEvent: { count: jest.Mock; findMany: jest.Mock };
   };
 
@@ -103,6 +103,7 @@ describe('MatchEventsService', () => {
             fixture: {
               findUnique: jest.fn().mockResolvedValue(null),
               count: jest.fn().mockResolvedValue(0),
+              update: jest.fn(),
             },
             matchEvent: {
               count: jest.fn().mockResolvedValue(0),
@@ -411,6 +412,34 @@ describe('MatchEventsService', () => {
       expect(graphicsService.enqueue).not.toHaveBeenCalledWith(
         expect.objectContaining({ template: 'LEAGUE_TABLE' }),
       );
+      expect(prisma.fixture.update).toHaveBeenCalledWith({
+        where: { id: FIXTURE_ID },
+        data: { chainVerified: true, verifiedAt: expect.any(Date) },
+      });
+    });
+
+    it('caches chainVerified as false when the replayed chain does not verify', async () => {
+      prisma.fixture.findUnique.mockResolvedValue(fakeFixtureWithTeams());
+      prisma.fixture.count.mockResolvedValue(1);
+      repository.create.mockResolvedValue(
+        fakeEvent({ type: 'FULL_TIME' }) as never,
+      );
+      // A single event with a prevHash that doesn't match the seed hash —
+      // verifyEventChain rejects this as a broken chain.
+      repository.findByFixtureId.mockResolvedValue([
+        fakeEvent({ prevHash: 'not-the-seed-hash', hash: 'h1' }),
+      ] as never);
+
+      await service.recordEvent(
+        FIXTURE_ID,
+        { ...baseDto, type: 'FULL_TIME' } as never,
+        RECORDED_BY,
+      );
+
+      expect(prisma.fixture.update).toHaveBeenCalledWith({
+        where: { id: FIXTURE_ID },
+        data: { chainVerified: false, verifiedAt: expect.any(Date) },
+      });
     });
 
     it('enqueues a LEAGUE_TABLE graphic when no fixtures remain scheduled/live that day', async () => {

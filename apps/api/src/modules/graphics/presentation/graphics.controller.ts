@@ -77,6 +77,8 @@ export class GraphicsController {
       throw new BadRequestException('This graphic is not ready to share yet');
     }
 
+    void this.graphicsService.incrementShareCount(id).catch(() => undefined);
+
     return {
       whatsappUrl: `https://wa.me/?text=${encodeURIComponent(graphic.publicUrl)}`,
     };

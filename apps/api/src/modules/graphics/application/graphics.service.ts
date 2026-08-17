@@ -138,4 +138,17 @@ export class GraphicsService {
       orderBy: { createdAt: 'desc' },
     });
   }
+
+  /**
+   * Phase 4 (brief §5.1) "graphics shared" metric — a share *intent*
+   * (the link was requested), not a confirmed share, since the native
+   * share sheet itself is a client-side action invisible to this API. See
+   * the schema comment on Graphic.shareCount.
+   */
+  async incrementShareCount(id: string): Promise<void> {
+    await this.prisma.graphic.update({
+      where: { id },
+      data: { shareCount: { increment: 1 } },
+    });
+  }
 }

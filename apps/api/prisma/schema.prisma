@@ -25,12 +25,15 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  refreshTokens       RefreshToken[]
-  recordedMatchEvents MatchEvent[]
-  newsArticles        NewsArticle[]
-  uploadedMedia       Media[]
-  organisationMembers OrganisationMember[]
-  confirmedPayments   Payment[]            @relation("PaymentConfirmedBy")
+  refreshTokens              RefreshToken[]
+  recordedMatchEvents        MatchEvent[]
+  newsArticles               NewsArticle[]
+  uploadedMedia              Media[]
+  organisationMembers        OrganisationMember[]
+  confirmedPayments          Payment[]            @relation("PaymentConfirmedBy")
+  createdPlayerOutcomes      PlayerOutcome[]
+  grantedSponsorEntitlements SponsorEntitlement[]
+  recordedAcademyAttendance  AcademyAttendance[]
 
   @@map("users")
 }
@@ -56,6 +59,11 @@ enum OrganisationMemberRole {
   ADMIN
   RECORDER
   VIEWER
+  // Phase 4 (brief §5.2): academy coach accounts. Scoped to the academy
+  // organisation like every other membership role, not a separate account
+  // type — a coach is a member of the academy's organisation, same as a
+  // club RECORDER is a member of the club's.
+  COACH
 }
 
 model Organisation {
@@ -76,6 +84,10 @@ model Organisation {
   payments              Payment[]
   invoices              Invoice[]
   mediaPackEntitlements MediaPackEntitlement[]
+  sponsorEntitlements   SponsorEntitlement[]
+  academyAgeGroups      AcademyAgeGroup[]
+  academyAttendance     AcademyAttendance[]
+  academySubscriptions  AcademySubscription[]
 
   @@map("organisations")
 }
@@ -122,6 +134,11 @@ model Team {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  // Phase 4 (brief §5.1): "communities/LGAs covered" sponsor-dashboard
+  // metric. Nullable, not backfilled — no existing team has ever recorded
+  // this.
+  community String?
+
   // Nullable and NOT backfilled — every team that exists today was created
   // by an admin, not by a club self-registering (that flow is new in Phase
   // 2). Stays null until a club account claims/creates the team through the
@@ -129,6 +146,11 @@ model Team {
   // deleted club account shouldn't be blocked the way money records are.
   organisationId String?
   organisation   Organisation? @relation(fields: [organisationId], references: [id], onDelete: SetNull)
+
+  // Phase 4 (brief §5.2): links a squad to its academy age group. Nullable —
+  // most teams are competition club sides with no academy concept at all.
+  ageGroupId String?
+  ageGroup   AcademyAgeGroup? @relation(fields: [ageGroupId], references: [id], onDelete: SetNull)
 
   players             Player[]
   competitionEntries  CompetitionEntry[]
@@ -139,6 +161,7 @@ model Team {
 
   @@index([country])
   @@index([organisationId])
+  @@index([ageGroupId])
   @@map("teams")
 }
 
@@ -155,6 +178,14 @@ enum PreferredFoot {
   BOTH
 }
 
+// Phase 4 (brief §5.1): "players by age group and gender" impact-report
+// breakdown.
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
 model Player {
   id            String          @id @default(uuid())
   firstName     String
@@ -167,6 +198,7 @@ model Player {
   heightCm      Int?
   preferredFoot PreferredFoot?
   photoUrl      String?
+  gender        Gender?
   isActive      Boolean         @default(true)
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
@@ -177,6 +209,8 @@ model Player {
   matchEventsAsPlayer MatchEvent[]         @relation("MatchEventPlayer")
   matchEventsAsAssist MatchEvent[]         @relation("MatchEventAssist")
   registrations       PlayerRegistration[]
+  outcomes            PlayerOutcome[]
+  academyAttendance   AcademyAttendance[]
 
   @@index([teamId])
   @@index([nationality])
@@ -227,6 +261,12 @@ model Competition {
   secondaryColor String?
   sponsorLogoUrl String?
 
+  // Phase 4 (brief §5.1): sponsor-dashboard "digital reach" metric.
+  // Incremented in CompetitionsService.getBySlug() — an approximation
+  // (counts API calls to the public endpoint, not unique client page
+  // loads; there is no client-side analytics pipeline in this codebase).
+  pageViewCount Int @default(0)
+
   // Every competition belongs to an organisation now (was a bare global
   // entity before Phase 2) — NOT NULL because the migration backfills every
   // existing row to a seeded "legacy" organisation before this constraint is
@@ -253,6 +293,7 @@ model Competition {
   playerRegistrations   PlayerRegistration[]
   graphics              Graphic[]
   mediaPackEntitlements MediaPackEntitlement[]
+  sponsorEntitlements   SponsorEntitlement[]
 
   @@index([country])
   @@index([season])
@@ -350,6 +391,16 @@ model Fixture {
   awayScore     Int?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
+
+  // Phase 4 (brief §5.1). attendanceCount: "recorder enters a figure at
+  // half-time" — nullable, only ever set by a recorder action, never
+  // inferred. chainVerified/verifiedAt: cached result of Phase 1's
+  // verifyEventChain() replay, computed once in MatchEventsService's
+  // existing FULL_TIME hook rather than re-replayed on every sponsor
+  // dashboard load.
+  attendanceCount Int?
+  chainVerified   Boolean   @default(false)
+  verifiedAt      DateTime?
 
   // The onDelete behavior lives on MatchEvent.fixture below (Restrict, not
   // Cascade): a fixture with recorded events can't be deleted out from under
@@ -625,7 +676,8 @@ model Invoice {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
-  lines InvoiceLine[]
+  lines               InvoiceLine[]
+  academySubscription AcademySubscription?
 
   @@index([organisationId])
   @@map("invoices")
@@ -712,6 +764,12 @@ model Graphic {
   createdAt    DateTime  @default(now())
   readyAt      DateTime?
 
+  // Phase 4 (brief §5.1): "graphics shared" sponsor-dashboard metric.
+  // Incremented each time the WhatsApp share-link endpoint is hit — a
+  // share *intent*, not a confirmed share, since the native share sheet
+  // itself is a client-side action invisible to this API.
+  shareCount Int @default(0)
+
   @@index([status])
   @@index([subjectType, subjectId])
   @@index([competitionId])
@@ -740,4 +798,135 @@ model MediaPackEntitlement {
 
   @@index([organisationId])
   @@map("media_pack_entitlements")
+}
+
+// ===== Phase 4: sponsor reporting + academy workspace (MONETISATION_BUILD_BRIEF.md §5) =====
+
+enum PlayerOutcomeType {
+  TRIAL
+  CALL_UP
+  SIGNING
+}
+
+// "The number sponsors care about most and nobody else can produce it"
+// (brief §5.1) — deliberately hand-entered, unlike every other
+// sponsor-dashboard number, but WITH a mandatory source citation, which is
+// what makes it auditable rather than a claimed/inflated figure. Same
+// EDITOR-role convention as NewsArticle: curated content, not a derived
+// metric.
+model PlayerOutcome {
+  id          String            @id @default(uuid())
+  playerId    String
+  player      Player            @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  type        PlayerOutcomeType
+  description String
+  sourceNote  String
+  occurredAt  DateTime
+  createdById String
+  createdBy   User              @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt   DateTime          @default(now())
+
+  @@index([playerId])
+  @@map("player_outcomes")
+}
+
+enum SponsorFeature {
+  IMPACT_REPORT
+}
+
+// Admin-granted, not self-serve purchased — brief §7: "Self-serve checkout
+// and pricing pages before the tenth manual deal" is explicitly on the
+// do-not-build list. An IMPACT_REPORT deal is closed manually; an admin
+// records the grant here afterward. No sourcePayment FK (unlike
+// MediaPackEntitlement) since there's deliberately no checkout flow behind
+// this — `note` carries whatever the admin wants to record about the deal.
+model SponsorEntitlement {
+  id             String         @id @default(uuid())
+  organisationId String
+  organisation   Organisation   @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  competitionId  String?
+  competition    Competition?   @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  feature        SponsorFeature
+  grantedById    String
+  grantedBy      User           @relation(fields: [grantedById], references: [id], onDelete: Restrict)
+  note           String?
+  grantedAt      DateTime       @default(now())
+
+  @@index([organisationId])
+  @@map("sponsor_entitlements")
+}
+
+model AcademyAgeGroup {
+  id             String       @id @default(uuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  name           String
+  minAge         Int?
+  maxAge         Int?
+  createdAt      DateTime     @default(now())
+
+  teams      Team[]
+  attendance AcademyAttendance[]
+
+  @@unique([organisationId, name])
+  @@map("academy_age_groups")
+}
+
+// "Four taps per player" (brief §5.2) — one tap = one status.
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+// Same offline-sync idempotency pattern as MatchEvent (brief §5.2: "works
+// offline, same sync mechanism as match capture") — clientEventId is the
+// dedup key a flaky-connectivity retry resolves against, not a natural key
+// on (ageGroupId, playerId, date), since a coach may legitimately correct
+// an earlier tap by recording a new row rather than editing history, same
+// "correction not mutation" spirit as match_events.
+model AcademyAttendance {
+  id             String           @id @default(uuid())
+  organisationId String
+  organisation   Organisation     @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  ageGroupId     String
+  ageGroup       AcademyAgeGroup  @relation(fields: [ageGroupId], references: [id], onDelete: Cascade)
+  playerId       String
+  player         Player           @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  date           DateTime
+  status         AttendanceStatus
+  recordedById   String
+  recordedBy     User             @relation(fields: [recordedById], references: [id], onDelete: Restrict)
+  clientEventId  String           @unique
+  createdAt      DateTime         @default(now())
+
+  @@index([ageGroupId, playerId])
+  @@index([organisationId])
+  @@map("academy_attendance")
+}
+
+enum AcademyPlanKey {
+  STARTER
+  GROWTH
+  ELITE
+}
+
+// One row per year, append-only — a renewal is a new row, not a mutation
+// of last year's, same precedent as Payment/Invoice records never being
+// mutated after the fact. invoiceId is unique: exactly one subscription
+// period per invoice.
+model AcademySubscription {
+  id             String         @id @default(uuid())
+  organisationId String
+  organisation   Organisation   @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  planKey        AcademyPlanKey
+  startDate      DateTime
+  endDate        DateTime
+  invoiceId      String         @unique
+  invoice        Invoice        @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  createdAt      DateTime       @default(now())
+
+  @@index([organisationId])
+  @@map("academy_subscriptions")
 }

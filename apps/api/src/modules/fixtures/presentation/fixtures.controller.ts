@@ -17,6 +17,7 @@ import { FixturesService } from '../application/fixtures.service';
 import { CreateFixtureDto } from '../application/dto/create-fixture.dto';
 import { UpdateFixtureDto } from '../application/dto/update-fixture.dto';
 import { QueryFixturesDto } from '../application/dto/query-fixtures.dto';
+import { RecordAttendanceDto } from '../application/dto/record-attendance.dto';
 
 @ApiTags('fixtures')
 @Controller('fixtures')
@@ -47,6 +48,13 @@ export class FixturesController {
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateFixtureDto) {
     return this.fixturesService.update(id, dto);
+  }
+
+  @ApiBearerAuth()
+  @Roles('SUPER_ADMIN', 'ADMIN', 'SCOUT')
+  @Patch(':id/attendance')
+  recordAttendance(@Param('id') id: string, @Body() dto: RecordAttendanceDto) {
+    return this.fixturesService.recordAttendance(id, dto.attendanceCount);
   }
 
   @ApiBearerAuth()

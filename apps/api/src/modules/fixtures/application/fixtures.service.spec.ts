@@ -136,4 +136,36 @@ describe('FixturesService', () => {
       expect(repository.delete).not.toHaveBeenCalled();
     });
   });
+
+  describe('recordAttendance', () => {
+    it('rejects a negative attendance figure', async () => {
+      await expect(
+        service.recordAttendance('fixture-1', -5),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(repository.update).not.toHaveBeenCalled();
+    });
+
+    it('throws NotFoundException for a fixture that does not exist', async () => {
+      repository.findById.mockResolvedValue(null);
+
+      await expect(
+        service.recordAttendance('missing', 200),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(repository.update).not.toHaveBeenCalled();
+    });
+
+    it('records the attendance figure for an existing fixture', async () => {
+      repository.findById.mockResolvedValue({ id: 'fixture-1' } as never);
+      repository.update.mockResolvedValue({
+        toPublic: () => ({ id: 'fixture-1', attendanceCount: 250 }),
+      } as never);
+
+      const result = await service.recordAttendance('fixture-1', 250);
+
+      expect(repository.update).toHaveBeenCalledWith('fixture-1', {
+        attendanceCount: 250,
+      });
+      expect(result).toEqual({ id: 'fixture-1', attendanceCount: 250 });
+    });
+  });
 });

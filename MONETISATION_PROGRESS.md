@@ -123,3 +123,76 @@ schema/module changes already in flight to actually compile/run):**
 - Competition branding colours (`primaryColor`/`secondaryColor`/
   `sponsorLogoUrl`) are settable via the existing admin competition
   create/update endpoints but have no dedicated admin UI either.
+
+## Phase 4 — Sponsor reporting and academy workspace
+
+Two largely independent subsystems, both shipped: `SponsorshipModule`
+(§5.1 — sponsor dashboard, impact reports, player outcomes) and
+`AcademyModule` (§5.2 — age groups, coach accounts, attendance,
+subscriptions, termly reports).
+
+**PDF library:** `pdfkit`, chosen over Satori (fixed-canvas images, not a
+fit for a multi-page paginated document) and Puppeteer (same "no headless
+Chromium" reasoning as Phase 3). A real bug surfaced during a smoke test:
+`fontkit` (pdfkit's font parser) throws `Offset is outside the bounds of
+the DataView` on the IBM Plex Mono TTF — confirmed across every weight —
+even though Satori's own parser handles the identical file fine. Space
+Mono substitutes for the mono face in PDFs only; not an arbitrary swap,
+it's the mono face `apps/mobile`'s *other* existing brand identity
+("Fourth Official," the scout-tool theme) already uses. A second real bug,
+also caught by smoke-testing before building on top of it: the first
+`statGrid()`/`table()` implementation relied on pdfkit's implicit text
+cursor advancing predictably across manual grid columns/rows — it doesn't,
+and the rendered output visibly overlapped text across cells. Rewritten to
+compute every cell's (x, y) explicitly from its row/column index.
+
+**Deviations flagged before writing code, confirmed with the user:**
+1. **"Digital reach" / page views** — no analytics infrastructure exists
+   anywhere in this codebase. `Competition.pageViewCount` increments on
+   every `getBySlug()` call — a real counter, but it measures API calls to
+   the public endpoint, not unique client-side page loads.
+2. **"Graphics shared"** — `Graphic.shareCount` increments when the
+   WhatsApp share *link* is requested, not on a confirmed share, since the
+   native share sheet is a client-side action invisible to this API.
+3. **"Matches verified"** — cached (`Fixture.chainVerified`/`verifiedAt`),
+   computed once at the same `FULL_TIME` hook Phase 3 added, rather than
+   re-replaying every fixture's hash chain on every dashboard load.
+4. **No self-serve checkout for the Impact Report** — §7 explicitly lists
+   "self-serve checkout and pricing pages before the tenth manual deal" as
+   something not to build. Unlike Phase 3's Media Pack (small, appropriate
+   for self-serve), `SponsorEntitlement` is admin-*granted* after a manual
+   deal closes — no `sourcePayment` FK at all, unlike `MediaPackEntitlement`.
+5. **No stored "Term" entity** for the termly development report — the
+   caller supplies an explicit date range; inventing a calendar concept
+   this schema has no other use for felt like the wrong trade.
+6. **Academy plan billing is invoice-only** — reuses Phase 2's
+   `InvoicesModule` (with the 20% `ANNUAL_PREPAY_DISCOUNT`, unused in
+   `pricing.ts` since the phase that defined it). "No monthly card
+   billing" is enforced structurally: `AcademySubscriptionsService` never
+   injects `PaymentsService`/`PaystackClientService` at all, so there is no
+   code path to a card charge.
+
+**Two real gaps found in already-shipped Phase 2 code, closed along the
+way (not scope creep — needed for Phase 4's own features to work):**
+- `OrganisationsService.addMember()` has existed since Phase 2 but was
+  never wired to a controller route — no member of any role (including
+  this phase's new `COACH`) could be added via the API at all. Added
+  `POST /organisations/:id/members`.
+- `assertCanManage()` only allows `OWNER`/`ADMIN`. Attendance recording —
+  a coach's actual day-to-day task — would have locked every coach out
+  entirely. Added a parallel `assertCanCoach()` (`OWNER`/`ADMIN`/`COACH`),
+  used for attendance and enrollment; admin-tier actions (age-group
+  creation, team assignment, subscription purchase) still require
+  `assertCanManage()`.
+
+**A design call worth surfacing:** the platform-wide player milestone
+(Phase 3) and academy player passports both needed a graphics hook;
+academy enrolment reuses the *same* ungated `PLAYER_PASSPORT` template
+Phase 3 built for competition registration rather than a second one —
+brief §5.2 asks for "player passports issued to every academy player,"
+not a visually distinct academy passport.
+
+**Explicitly out of scope for this pass:** every report/dashboard's
+frontend UI (same API-only boundary as every prior phase); a
+"round"/"term"/"session" calendar model beyond the caller-supplied date
+ranges described above.

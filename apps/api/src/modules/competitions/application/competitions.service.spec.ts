@@ -5,11 +5,13 @@ import { COMPETITION_REPOSITORY } from '../domain/competition.repository';
 import type { CompetitionRepository } from '../domain/competition.repository';
 import { TeamsService } from '../../teams/application/teams.service';
 import { SearchService } from '../../search/application/search.service';
+import { PrismaService } from '../../../common/prisma/prisma.service';
 
 describe('CompetitionsService', () => {
   let service: CompetitionsService;
   let repository: jest.Mocked<CompetitionRepository>;
   let teamsService: jest.Mocked<TeamsService>;
+  let prisma: { competition: { update: jest.Mock } };
 
   beforeEach(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -39,10 +41,19 @@ describe('CompetitionsService', () => {
             deleteCompetition: jest.fn(),
           },
         },
+        {
+          provide: PrismaService,
+          useValue: {
+            competition: {
+              update: jest.fn().mockResolvedValue(undefined),
+            },
+          },
+        },
       ],
     }).compile();
 
     service = moduleRef.get(CompetitionsService);
+    prisma = moduleRef.get(PrismaService);
     repository = moduleRef.get(COMPETITION_REPOSITORY);
     teamsService = moduleRef.get(TeamsService);
   });
@@ -92,5 +103,79 @@ describe('CompetitionsService', () => {
     await service.addEntry('comp-1', 'team-1');
 
     expect(repository.addEntry).toHaveBeenCalledWith('comp-1', 'team-1');
+  });
+
+  describe('getBySlug', () => {
+    it('increments the page view counter (fire-and-forget) on every fetch', async () => {
+      repository.findBySlug.mockResolvedValue({
+        toPublic: () => ({ id: 'comp-1', slug: 'lagos-cup' }),
+      } as never);
+
+      await service.getBySlug('lagos-cup');
+      // Flush the fire-and-forget microtask.
+      await Promise.resolve();
+
+      expect(prisma.competition.update).toHaveBeenCalledWith({
+        where: { slug: 'lagos-cup' },
+        data: { pageViewCount: { increment: 1 } },
+      });
+    });
+
+    it('throws NotFoundException for a missing slug without touching the counter', async () => {
+      repository.findBySlug.mockResolvedValue(null);
+
+      await expect(service.getBySlug('missing')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      expect(prisma.competition.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('update — slug uniqueness (Phase 4: custom sponsor-page slug)', () => {
+    it('allows updating other fields without touching slug uniqueness when slug is unchanged', async () => {
+      repository.findById.mockResolvedValue({
+        toPublic: () => ({ id: 'comp-1', slug: 'lagos-cup' }),
+      } as never);
+      repository.update.mockResolvedValue({
+        toPublic: () => ({ id: 'comp-1' }),
+      } as never);
+
+      await service.update('comp-1', {
+        slug: 'lagos-cup',
+        name: 'Lagos Cup',
+      } as never);
+
+      expect(repository.slugExists).not.toHaveBeenCalled();
+      expect(repository.update).toHaveBeenCalled();
+    });
+
+    it('rejects a new slug that is already taken', async () => {
+      repository.findById.mockResolvedValue({
+        toPublic: () => ({ id: 'comp-1', slug: 'old-slug' }),
+      } as never);
+      repository.slugExists.mockResolvedValue(true);
+
+      await expect(
+        service.update('comp-1', { slug: 'taken-slug' } as never),
+      ).rejects.toThrow('Slug "taken-slug" is already in use');
+      expect(repository.update).not.toHaveBeenCalled();
+    });
+
+    it('accepts a new, available slug', async () => {
+      repository.findById.mockResolvedValue({
+        toPublic: () => ({ id: 'comp-1', slug: 'old-slug' }),
+      } as never);
+      repository.slugExists.mockResolvedValue(false);
+      repository.update.mockResolvedValue({
+        toPublic: () => ({ id: 'comp-1', slug: 'new-slug' }),
+      } as never);
+
+      await service.update('comp-1', { slug: 'new-slug' } as never);
+
+      expect(repository.update).toHaveBeenCalledWith(
+        'comp-1',
+        expect.objectContaining({ slug: 'new-slug' }),
+      );
+    });
   });
 });

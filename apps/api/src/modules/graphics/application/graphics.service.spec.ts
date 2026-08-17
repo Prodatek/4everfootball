@@ -12,6 +12,7 @@ function fakePrisma() {
       findUnique: jest.fn(),
       findMany: jest.fn(),
       create: jest.fn(),
+      update: jest.fn(),
     },
   };
 }
@@ -169,6 +170,17 @@ describe('GraphicsService', () => {
       await expect(service.getById('missing')).rejects.toBeInstanceOf(
         NotFoundException,
       );
+    });
+  });
+
+  describe('incrementShareCount', () => {
+    it('increments the shareCount counter for the given graphic', async () => {
+      await service.incrementShareCount('g1');
+
+      expect(prisma.graphic.update).toHaveBeenCalledWith({
+        where: { id: 'g1' },
+        data: { shareCount: { increment: 1 } },
+      });
     });
   });
 });

@@ -30,6 +30,8 @@ import { InvoicesModule } from './modules/invoices/invoices.module';
 import { MediaPacksModule } from './modules/media-packs/media-packs.module';
 import { GraphicsModule } from './modules/graphics/graphics.module';
 import { GraphicsTriggersModule } from './modules/graphics/graphics-triggers.module';
+import { SponsorshipModule } from './modules/sponsorship/sponsorship.module';
+import { AcademyModule } from './modules/academy/academy.module';
 
 @Module({
   imports: [
@@ -58,6 +60,8 @@ import { GraphicsTriggersModule } from './modules/graphics/graphics-triggers.mod
     MediaPacksModule,
     GraphicsModule,
     GraphicsTriggersModule,
+    SponsorshipModule,
+    AcademyModule,
   ],
   controllers: [HealthController],
   providers: [

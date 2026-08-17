@@ -149,6 +149,31 @@ export class FixturesService {
   }
 
   /**
+   * Brief §5.1: "recorder enters a figure at half-time" — a manual,
+   * recorder-facing action, unlike applyMatchEngineUpdate() below which is
+   * driven entirely by recorded match events. Not restricted to
+   * half-time-only server-side (recorders don't always tap exactly on
+   * time); this just makes the figure available once entered.
+   */
+  async recordAttendance(id: string, attendanceCount: number) {
+    if (attendanceCount < 0) {
+      throw new BadRequestException('attendanceCount cannot be negative');
+    }
+
+    const existing = await this.fixtureRepository.findById(id);
+
+    if (!existing) {
+      throw new NotFoundException('Fixture not found');
+    }
+
+    const fixture = await this.fixtureRepository.update(id, {
+      attendanceCount,
+    });
+
+    return fixture.toPublic();
+  }
+
+  /**
    * Internal write path for the match engine: recomputed score + status
    * transitions driven by recorded match events, not admin-submitted DTOs.
    * Accepts an optional transaction client so the caller can keep this update

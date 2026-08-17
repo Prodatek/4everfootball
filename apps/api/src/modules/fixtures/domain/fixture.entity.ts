@@ -27,6 +27,9 @@ export interface FixtureProps {
   status: FixtureStatus;
   homeScore: number | null;
   awayScore: number | null;
+  attendanceCount: number | null;
+  chainVerified: boolean;
+  verifiedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }

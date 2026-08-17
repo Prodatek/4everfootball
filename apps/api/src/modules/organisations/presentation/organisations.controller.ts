@@ -5,6 +5,7 @@ import { Roles } from '../../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { OrganisationsService } from '../application/organisations.service';
 import { CreateOrganisationDto } from '../application/dto/create-organisation.dto';
+import { AddOrganisationMemberDto } from '../application/dto/add-organisation-member.dto';
 
 @ApiTags('organisations')
 @ApiBearerAuth()
@@ -32,5 +33,20 @@ export class OrganisationsController {
   @Get(':id')
   getById(@Param('id') id: string) {
     return this.organisationsService.getById(id);
+  }
+
+  // Was never wired up despite OrganisationsService.addMember() existing
+  // since Phase 2 — no member (of any role, including this phase's new
+  // COACH) could be added via the API at all. Org-scoped (assertCanManage),
+  // not the platform-role gate on getById() above: adding a member is
+  // something an org's own OWNER/ADMIN does, not just a platform admin.
+  @Post(':id/members')
+  async addMember(
+    @Param('id') id: string,
+    @Body() dto: AddOrganisationMemberDto,
+    @CurrentUser() user: JwtAccessPayload,
+  ) {
+    await this.organisationsService.assertCanManage(id, user);
+    return this.organisationsService.addMember(id, dto.userId, dto.role);
   }
 }

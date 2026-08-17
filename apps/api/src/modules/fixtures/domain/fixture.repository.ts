@@ -40,6 +40,7 @@ export interface UpdateFixtureInput {
   status?: FixtureStatus;
   homeScore?: number | null;
   awayScore?: number | null;
+  attendanceCount?: number | null;
 }
 
 export interface FixtureRepository {

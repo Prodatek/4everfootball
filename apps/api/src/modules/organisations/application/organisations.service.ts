@@ -14,6 +14,11 @@ import {
 import type { CreateOrganisationDto } from './dto/create-organisation.dto';
 
 const MANAGE_ROLES: OrganisationMemberRole[] = ['OWNER', 'ADMIN'];
+// Phase 4 (brief §5.2): a coach's daily task (recording attendance) isn't
+// an "administer this organisation" action the way adding a member or
+// buying an academy plan is — OWNER/ADMIN can still do it (they might
+// coach too), but it shouldn't require being one.
+const COACH_ROLES: OrganisationMemberRole[] = ['OWNER', 'ADMIN', 'COACH'];
 
 @Injectable()
 export class OrganisationsService {
@@ -63,6 +68,35 @@ export class OrganisationsService {
     organisationId: string,
     actingUser: JwtAccessPayload,
   ): Promise<void> {
+    await this.assertHasRole(
+      organisationId,
+      actingUser,
+      MANAGE_ROLES,
+      'You must be an owner or admin of this organisation to do that',
+    );
+  }
+
+  /** Brief §5.2: attendance recording is a coach's core task, not an
+   * "administer this organisation" action — see the comment on
+   * COACH_ROLES. */
+  async assertCanCoach(
+    organisationId: string,
+    actingUser: JwtAccessPayload,
+  ): Promise<void> {
+    await this.assertHasRole(
+      organisationId,
+      actingUser,
+      COACH_ROLES,
+      'You must be an owner, admin, or coach of this organisation to do that',
+    );
+  }
+
+  private async assertHasRole(
+    organisationId: string,
+    actingUser: JwtAccessPayload,
+    allowedRoles: OrganisationMemberRole[],
+    errorMessage: string,
+  ): Promise<void> {
     if (actingUser.roles.includes('SUPER_ADMIN')) {
       return;
     }
@@ -73,10 +107,8 @@ export class OrganisationsService {
       },
     });
 
-    if (!membership || !MANAGE_ROLES.includes(membership.role)) {
-      throw new ForbiddenException(
-        'You must be an owner or admin of this organisation to do that',
-      );
+    if (!membership || !allowedRoles.includes(membership.role)) {
+      throw new ForbiddenException(errorMessage);
     }
   }
 

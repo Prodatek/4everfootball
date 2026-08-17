@@ -21,6 +21,7 @@ export interface Competition {
   primaryColor: string | null;
   secondaryColor: string | null;
   sponsorLogoUrl: string | null;
+  pageViewCount: number;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

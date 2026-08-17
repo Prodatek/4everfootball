@@ -85,6 +85,50 @@ describe('OrganisationsService', () => {
     });
   });
 
+  describe('assertCanCoach', () => {
+    it('allows a SUPER_ADMIN regardless of membership', async () => {
+      await expect(
+        service.assertCanCoach('org-1', {
+          sub: 'user-1',
+          roles: ['SUPER_ADMIN'],
+        } as never),
+      ).resolves.toBeUndefined();
+      expect(prisma.organisationMember.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('allows a COACH member (the whole point of the role)', async () => {
+      prisma.organisationMember.findUnique.mockResolvedValue({ role: 'COACH' });
+      await expect(
+        service.assertCanCoach('org-1', {
+          sub: 'user-1',
+          roles: ['USER'],
+        } as never),
+      ).resolves.toBeUndefined();
+    });
+
+    it('still allows an OWNER/ADMIN (they might coach too)', async () => {
+      prisma.organisationMember.findUnique.mockResolvedValue({ role: 'OWNER' });
+      await expect(
+        service.assertCanCoach('org-1', {
+          sub: 'user-1',
+          roles: ['USER'],
+        } as never),
+      ).resolves.toBeUndefined();
+    });
+
+    it('rejects a VIEWER member', async () => {
+      prisma.organisationMember.findUnique.mockResolvedValue({
+        role: 'VIEWER',
+      });
+      await expect(
+        service.assertCanCoach('org-1', {
+          sub: 'user-1',
+          roles: ['USER'],
+        } as never),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+  });
+
   describe('checkCanCreateCommunityCompetition', () => {
     it('allows the first COMMUNITY competition for an organisation', async () => {
       prisma.competition.count.mockResolvedValue(0);

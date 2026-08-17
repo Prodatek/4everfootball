@@ -10,6 +10,7 @@ import {
   type PaginatedResult,
 } from '../../../common/dto/paginated-result';
 import { slugify } from '../../../common/utils/slugify';
+import { PrismaService } from '../../../common/prisma/prisma.service';
 import { TeamsService } from '../../teams/application/teams.service';
 import { SearchService } from '../../search/application/search.service';
 import { COMPETITION_REPOSITORY } from '../domain/competition.repository';
@@ -25,6 +26,7 @@ export class CompetitionsService {
     private readonly competitionRepository: CompetitionRepository,
     private readonly teamsService: TeamsService,
     private readonly searchService: SearchService,
+    private readonly prisma: PrismaService,
   ) {}
 
   async list(query: QueryCompetitionsDto): Promise<PaginatedResult<unknown>> {
@@ -68,6 +70,13 @@ export class CompetitionsService {
       throw new NotFoundException('Competition not found');
     }
 
+    // Phase 4 (brief §5.1) "digital reach" metric — fire-and-forget, same
+    // style as the search-index calls below; a failed increment must never
+    // fail the page load it's counting.
+    void this.prisma.competition
+      .update({ where: { slug }, data: { pageViewCount: { increment: 1 } } })
+      .catch(() => undefined);
+
     return competition.toPublic();
   }
 
@@ -98,6 +107,14 @@ export class CompetitionsService {
 
     if (!existing) {
       throw new NotFoundException('Competition not found');
+    }
+
+    if (dto.slug && dto.slug !== existing.toPublic().slug) {
+      const taken = await this.competitionRepository.slugExists(dto.slug);
+
+      if (taken) {
+        throw new ConflictException(`Slug "${dto.slug}" is already in use`);
+      }
     }
 
     const competition = await this.competitionRepository.update(id, {

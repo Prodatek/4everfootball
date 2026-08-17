@@ -371,6 +371,25 @@ export class MatchEventsService {
 
     await this.triggerLeagueTableIfRoundOver(fixture);
     await this.triggerSeasonSummaryIfSeasonOver(fixture);
+    await this.cacheChainVerification(fixture.id);
+  }
+
+  /**
+   * Phase 4 (brief §5.1): the sponsor dashboard's "matches verified" metric
+   * needs this number cheaply on every dashboard load — re-replaying every
+   * fixture's full hash chain on demand doesn't scale. Computed once here,
+   * at the same point the chain is already complete (FULL_TIME), and
+   * cached on the fixture; GET /fixtures/:id/verify (Phase 1) remains the
+   * live, on-demand replay for a skeptical organiser who wants to check
+   * one fixture themselves.
+   */
+  private async cacheChainVerification(fixtureId: string): Promise<void> {
+    const result = await this.verifyChain(fixtureId);
+
+    await this.prisma.fixture.update({
+      where: { id: fixtureId },
+      data: { chainVerified: result.valid, verifiedAt: new Date() },
+    });
   }
 
   /**

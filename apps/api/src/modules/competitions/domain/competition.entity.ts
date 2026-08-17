@@ -13,6 +13,7 @@ export interface CompetitionProps {
   primaryColor: string | null;
   secondaryColor: string | null;
   sponsorLogoUrl: string | null;
+  pageViewCount: number;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
