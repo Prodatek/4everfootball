@@ -23,24 +23,39 @@ pnpm dev:web    # http://localhost:3000
 
 `docker-compose.yml` also builds the API and web app themselves (via
 `apps/api/Dockerfile` / `apps/web/Dockerfile`, both pnpm-workspace-aware
-multi-stage builds), so the whole stack can run without a local Node install:
+multi-stage builds), so the whole stack can run without a local Node install.
+Requires `apps/api/.env` to exist first (copy from `apps/api/.env.example` and
+fill in JWT secrets — its localhost-based defaults for S3/Meilisearch/DB are
+correct for this path, they get overridden with in-network hostnames only
+where the `api` container itself needs to reach another container):
 
 ```bash
 docker compose up -d --build
-docker compose run --rm api-migrate   # applies Prisma migrations, one-shot
 ```
 
-- API: http://localhost:4000, web: http://localhost:3000.
+- API: http://localhost:4000 (Swagger at `/docs`), web: http://localhost:3000.
+- Migrations run automatically before `api` starts (`api-migrate` is a real
+  dependency with `condition: service_completed_successfully`, gated on
+  `postgres`'s healthcheck) — no manual `docker compose run` step needed for
+  a normal `up`. Re-run it by hand any time with
+  `docker compose run --rm api-migrate`.
 - `prisma-studio` runs alongside on its default port, http://localhost:5555,
   pointed at the same `postgres` container — useful for inspecting/seeding
   data without leaving the Docker stack.
-- `api-migrate` targets the pre-pruned build stage (the `api` service's own
-  image drops `devDependencies`, including the `prisma` CLI, via
-  `pnpm deploy --prod`), so it's the one to run for migrations rather than
-  `docker compose exec api ...`.
-- For a public-testing deploy behind a real domain (HTTPS, `nginx` +
-  Let's Encrypt), see `infrastructure/nginx/README.md` — separate from the
-  Terraform/ECS path in `infrastructure/README.md`.
+- `api-migrate`/`prisma-studio` target the pre-pruned build stage (the `api`
+  service's own image drops `devDependencies`, including the `prisma` CLI,
+  via `pnpm deploy --prod`), so they're the ones to run for migrations/studio
+  rather than `docker compose exec api ...`.
+- Payment paths (Paystack init/verify/webhook) need real test keys added to
+  `apps/api/.env`'s `PAYSTACK_*` vars to manually exercise — every other
+  route works with the `.env.example` defaults.
+- `nginx`/`certbot` (the public-testing reverse proxy) are excluded from a
+  plain `docker compose up` — they reference TLS certs that don't exist on a
+  fresh local clone. For a public-testing deploy behind a real domain, use
+  `docker compose -f docker-compose.yml -f docker-compose.public.yml --profile public up -d --build`
+  (see `docker-compose.public.yml`'s header comment for what it overrides),
+  plus the one-time certbot bootstrap in `infrastructure/nginx/README.md` —
+  separate from the Terraform/ECS path in `infrastructure/README.md`.
 
 ## Status
 

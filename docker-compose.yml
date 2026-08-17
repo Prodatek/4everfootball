@@ -10,6 +10,14 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    # api-migrate is a one-shot with no connection-retry logic of its own —
+    # without this, "docker compose up" can race it against postgres still
+    # starting up and fail on the very first run.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fourever -d fourever"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
 
   redis:
     image: redis:7-alpine
@@ -65,24 +73,35 @@ services:
     env_file:
       - apps/api/.env
     environment:
-      # Override the .env's localhost URLs with in-network service hostnames.
+      # Override the .env's localhost URLs with in-network service hostnames
+      # — these two are correct regardless of local vs public-deploy use,
+      # since the api container itself talks to postgres/meilisearch over
+      # the compose network either way.
+      #
+      # WEB_APP_URL/S3_ENDPOINT/S3_PUBLIC_URL are deliberately NOT overridden
+      # here: apps/api/.env's localhost values are what a human (or Postman)
+      # on the host machine needs to actually reach this stack for manual
+      # testing. createUploadUrl()'s presigned URLs embed whatever host
+      # S3_ENDPOINT is set to — that has to be resolvable by whoever makes
+      # the upload request, which for local testing is the host machine, not
+      # the compose network. For the real public deploy, layer
+      # docker-compose.public.yml on top instead of editing this file — see
+      # its header comment.
       DATABASE_URL: "postgresql://fourever:fourever@postgres:5432/fourever?schema=public"
       MEILISEARCH_HOST: "http://meilisearch:7700"
-      # Public-testing deploy (see infrastructure/README.md): CORS must allow
-      # the public web origin, and S3_ENDPOINT becomes the public MinIO
-      # hostname because createUploadUrl()'s presigned URLs embed whatever
-      # host the S3 client is configured with — the browser has to be able
-      # to resolve it. Comment these two out (or set back to localhost) for
-      # local-only docker compose use without nginx/DNS.
-      WEB_APP_URL: "https://4ever.buildspecs.io"
-      S3_ENDPOINT: "https://media.4ever.buildspecs.io"
-      S3_PUBLIC_URL: "https://media.4ever.buildspecs.io/media"
     ports:
       - "4000:4000"
     depends_on:
-      - postgres
-      - meilisearch
-      - minio
+      postgres:
+        condition: service_healthy
+      meilisearch:
+        condition: service_started
+      minio:
+        condition: service_started
+      minio-init:
+        condition: service_completed_successfully
+      api-migrate:
+        condition: service_completed_successfully
 
   # One-shot: applies pending Prisma migrations against `postgres`. Targets the
   # `build` stage (not the pruned `runtime` image) because that's the one with
@@ -100,7 +119,8 @@ services:
     working_dir: /repo
     entrypoint: ["pnpm", "--filter", "@4ef/api", "exec", "prisma", "migrate", "deploy"]
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
 
   # Prisma Studio on its default port, browsing whatever `postgres` currently
   # holds. Also targets `build` for the same reason as api-migrate above.
@@ -120,7 +140,8 @@ services:
     ports:
       - "5555:5555"
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
 
   web:
     build:
@@ -128,9 +149,11 @@ services:
       dockerfile: apps/web/Dockerfile
       args:
         # Baked into the client bundle at build time — must be reachable from
-        # the browser, not from inside the compose network. Override this
-        # build arg for any non-localhost deployment.
-        NEXT_PUBLIC_API_URL: "https://api.4ever.buildspecs.io"
+        # the browser, not from inside the compose network. localhost:4000 is
+        # correct for local docker compose use (api's port is published to
+        # the host). For a public deploy, layer docker-compose.public.yml on
+        # top instead of editing this file.
+        NEXT_PUBLIC_API_URL: "http://localhost:4000"
     restart: unless-stopped
     ports:
       - "3000:3000"
@@ -141,9 +164,11 @@ services:
   # one-time certbot bootstrap this depends on before nginx can start (it
   # fails to boot if the certs it references in conf.d/ don't exist yet).
   # Stands in for the eventual ALB/ECS deploy in infrastructure/, not a
-  # replacement for it.
+  # replacement for it. Excluded from a plain `docker compose up` (no local
+  # TLS certs exist) — start with `docker compose --profile public up`.
   nginx:
     image: nginx:1.27-alpine
+    profiles: ["public"]
     restart: unless-stopped
     ports:
       - "80:80"
@@ -162,6 +187,7 @@ services:
   # production automation.
   certbot:
     image: certbot/certbot:latest
+    profiles: ["public"]
     restart: unless-stopped
     volumes:
       - certbot_www:/var/www/certbot

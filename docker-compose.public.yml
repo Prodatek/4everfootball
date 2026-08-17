@@ -1,0 +1,18 @@
+# Public-testing deploy overlay — layer on top of the base file:
+#   docker compose -f docker-compose.yml -f docker-compose.public.yml --profile public up -d
+#
+# Carries the public-domain values that don't make sense for local testing
+# (CORS origin, S3 endpoint embedded in presigned URLs, the browser-facing
+# API URL baked into the web build). --profile public is still required
+# separately to also start nginx/certbot, since profiles aren't set by overlays.
+services:
+  api:
+    environment:
+      WEB_APP_URL: "https://4ever.buildspecs.io"
+      S3_ENDPOINT: "https://media.4ever.buildspecs.io"
+      S3_PUBLIC_URL: "https://media.4ever.buildspecs.io/media"
+
+  web:
+    build:
+      args:
+        NEXT_PUBLIC_API_URL: "https://api.4ever.buildspecs.io"
