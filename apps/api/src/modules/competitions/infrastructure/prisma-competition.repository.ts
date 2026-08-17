@@ -30,6 +30,9 @@ export class PrismaCompetitionRepository implements CompetitionRepository {
       ...(filters.search
         ? { name: { contains: filters.search, mode: 'insensitive' } }
         : {}),
+      ...(filters.organisationId
+        ? { organisationId: filters.organisationId }
+        : {}),
     };
 
     const [items, total] = await Promise.all([

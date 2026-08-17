@@ -14,6 +14,9 @@ export interface CompetitionListFilters {
   type?: CompetitionType;
   country?: string;
   season?: string;
+  // Added for MONETISATION_UI_BRIEF.md §5 A1/A4 — an organisation's
+  // detail/dashboard page needs to list only its own competitions.
+  organisationId?: string;
   sortBy: CompetitionSortField;
   sortOrder: SortOrder;
   includeInactive?: boolean;

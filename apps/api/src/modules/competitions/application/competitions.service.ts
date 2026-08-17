@@ -51,6 +51,7 @@ export class CompetitionsService {
       type: query.type,
       country: query.country,
       season: query.season,
+      organisationId: query.organisationId,
       sortBy: query.sortBy,
       sortOrder: query.sortOrder,
       includeInactive,

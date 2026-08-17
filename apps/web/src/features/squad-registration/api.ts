@@ -6,12 +6,26 @@ export interface GuardianConsentInput {
   guardianEmail?: string;
 }
 
+export type RegistrationStatus = "DRAFT" | "PENDING_PAYMENT" | "CONFIRMED" | "LOCKED";
+
+export interface PlayerRegistration {
+  id: string;
+  competitionId: string;
+  teamId: string;
+  playerId: string;
+  status: RegistrationStatus;
+  priceKobo: number;
+  paymentId: string | null;
+  guardianName: string | null;
+  guardianPhone: string | null;
+  guardianEmail: string | null;
+  guardianConsentAt: string | null;
+  player: { id: string; firstName: string; lastName: string; photoUrl: string | null };
+}
+
 /**
  * Upserts a DRAFT PlayerRegistration row (guardian consent + joins the
- * player to this competition, price set server-side). There's no GET for
- * this today (see MONETISATION_UI_INVENTORY.md follow-up notes), so this
- * screen can write consent but can't read back whether a given player was
- * already registered after a page reload — flagged, not hidden.
+ * player to this competition, price set server-side).
  */
 export async function registerPlayerForCompetition(
   competitionId: string,
@@ -24,4 +38,15 @@ export async function registerPlayerForCompetition(
     playerId,
     ...guardianConsent,
   });
+}
+
+export async function fetchRegistrationsForCompetition(
+  competitionId: string,
+  teamId?: string,
+): Promise<PlayerRegistration[]> {
+  const { data } = await apiClient.get<PlayerRegistration[]>(
+    `/competitions/${competitionId}/registrations`,
+    { params: teamId ? { teamId } : undefined },
+  );
+  return data;
 }

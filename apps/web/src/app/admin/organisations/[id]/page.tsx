@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { isAxiosError } from "axios";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Container } from "@/components/layout/container";
 import {
@@ -17,6 +17,9 @@ import {
   type OrganisationMemberRole,
 } from "@/features/organisations/api";
 import { AddMemberDialog } from "@/features/organisations/add-member-dialog";
+import { fetchCompetitionsForAdmin } from "@/features/competitions/api";
+import { Money } from "@/components/monetisation/money";
+import { COMPETITION_TIERS, type CompetitionTierKey } from "@4ef/shared";
 
 export default function OrganisationDetailPage({
   params,
@@ -45,6 +48,15 @@ export default function OrganisationDetailPage({
   } = useQuery({
     queryKey: ["organisation-members", id],
     queryFn: () => fetchOrganisationMembers(id),
+  });
+
+  const {
+    data: competitions,
+    isLoading: competitionsLoading,
+    isError: competitionsError,
+  } = useQuery({
+    queryKey: ["organisation-competitions", id],
+    queryFn: () => fetchCompetitionsForAdmin({ organisationId: id, limit: 50 }),
   });
 
   const addMemberMutation = useMutation({
@@ -89,6 +101,11 @@ export default function OrganisationDetailPage({
             {organisation.name}
             <Badge variant="secondary">{organisation.type}</Badge>
           </CardTitle>
+          <CardAction>
+            <Button size="sm" render={<Link href={`/admin/organisations/${id}/competitions/new`} />}>
+              New competition
+            </Button>
+          </CardAction>
         </CardHeader>
         <CardContent className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
           <p><span className="text-muted-foreground">Contact:</span> {organisation.contactName ?? "—"}</p>
@@ -98,6 +115,63 @@ export default function OrganisationDetailPage({
           <p className="col-span-2"><span className="text-muted-foreground">Address:</span> {organisation.address ?? "—"}</p>
         </CardContent>
       </Card>
+
+      <div className="flex items-center justify-between">
+        <h2 className="font-heading text-lg uppercase">Competitions</h2>
+        <Button size="sm" variant="outline" render={<Link href={`/admin/organisations/${id}/competitions/new`} />}>
+          New competition
+        </Button>
+      </div>
+
+      {competitionsLoading && (
+        <div className="flex flex-col gap-3">
+          <Skeleton className="h-16 rounded-md" />
+        </div>
+      )}
+
+      {!competitionsLoading && competitionsError && (
+        <p className="text-sm text-destructive">Failed to load competitions.</p>
+      )}
+
+      {!competitionsLoading && !competitionsError && competitions?.data.length === 0 && (
+        <Card size="sm">
+          <CardContent className="flex flex-col items-center gap-3 py-8 text-center">
+            <p className="text-muted-foreground">No competitions yet.</p>
+            <Button size="sm" render={<Link href={`/admin/organisations/${id}/competitions/new`} />}>
+              Create the first one
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {!competitionsLoading && !competitionsError && competitions && competitions.data.length > 0 && (
+        <div className="flex flex-col gap-3">
+          {competitions.data.map((competition) => {
+            const tier = (competition as unknown as { tier: CompetitionTierKey }).tier;
+            const licenceStatus = (competition as unknown as { licenceStatus: string }).licenceStatus;
+            return (
+              <Card key={competition.id} size="sm">
+                <CardContent className="flex items-center justify-between">
+                  <div className="flex flex-col gap-0.5">
+                    <Link href={`/admin/organisations/${id}/competitions/${competition.slug}`} className="font-medium hover:underline">
+                      {competition.name}
+                    </Link>
+                    <p className="text-sm text-muted-foreground">
+                      {competition.season} · {tier ? COMPETITION_TIERS[tier].label : "—"}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={licenceStatus === "ACTIVE" ? "default" : "secondary"}>
+                      {licenceStatus ?? "DRAFT"}
+                    </Badge>
+                    {tier && <Money kobo={COMPETITION_TIERS[tier].priceKobo} className="text-sm text-muted-foreground" />}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
 
       <div className="flex items-center justify-between">
         <h2 className="font-heading text-lg uppercase">Members</h2>

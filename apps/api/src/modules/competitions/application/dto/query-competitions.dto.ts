@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { CompetitionType } from '@prisma/client';
-import { IsEnum, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsEnum, IsIn, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import { PaginationQueryDto } from '../../../../common/dto/pagination-query.dto';
 import type {
   CompetitionSortField,
@@ -30,6 +30,11 @@ export class QueryCompetitionsDto extends PaginationQueryDto {
   @IsString()
   @MaxLength(20)
   season?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  organisationId?: string;
 
   @ApiPropertyOptional({ enum: ['name', 'season', 'startDate', 'createdAt'] })
   @IsOptional()

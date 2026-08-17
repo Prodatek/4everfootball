@@ -14,6 +14,7 @@ import {
 import type { RawBodyRequest } from '@nestjs/common';
 import type { Request } from 'express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ConfigService } from '@nestjs/config';
 import { COMPETITION_TIERS, type CompetitionTierKey } from '@4ef/shared';
 import type { JwtAccessPayload } from '@4ef/shared';
 import { Public } from '../../../common/decorators/public.decorator';
@@ -36,7 +37,21 @@ export class PaymentsController {
     private readonly paystackClient: PaystackClientService,
     private readonly organisationsService: OrganisationsService,
     private readonly prisma: PrismaService,
+    private readonly config: ConfigService,
   ) {}
+
+  // §5 A3 of MONETISATION_UI_BRIEF.md: "choosing bank transfer shows the
+  // account details" — these existed only as env vars read nowhere, no
+  // endpoint ever surfaced them to a client.
+  @ApiBearerAuth()
+  @Get('bank-details')
+  getBankDetails() {
+    return {
+      bankName: this.config.get<string>('BUSINESS_BANK_NAME') ?? null,
+      accountName: this.config.get<string>('BUSINESS_ACCOUNT_NAME') ?? null,
+      accountNumber: this.config.get<string>('BUSINESS_ACCOUNT_NUMBER') ?? null,
+    };
+  }
 
   // Licence payments only — see the InitializeLicencePaymentDto comment.
   // Player-registration checkout has its own endpoint under
@@ -73,12 +88,12 @@ export class PaymentsController {
     const { payment, authorizationUrl } = await this.paymentsService.initialize(
       {
         organisationId: dto.organisationId,
-        provider: 'PAYSTACK',
+        provider: dto.provider ?? 'PAYSTACK',
         purpose: 'LICENCE',
         subjectType: 'COMPETITION',
         subjectId: dto.competitionId,
         amountKobo: tierConfig.priceKobo,
-        payerEmail: currentUser.email,
+        payerEmail: dto.payerEmail ?? currentUser.email,
       },
     );
 

@@ -208,7 +208,8 @@ the actual intended access, not an oversight.
 
 | Method & path | Access | Notes |
 |---|---|---|
-| `POST /payments/initialize` | Any authenticated → **assertCanManage(org)** | Licence payments only. `amountKobo` always server-computed from `pricing.ts`, never client-supplied |
+| `POST /payments/initialize` | Any authenticated → **assertCanManage(org)** | Licence payments only. `amountKobo` always server-computed from `pricing.ts`, never client-supplied. `provider` now optional (defaults `PAYSTACK`) — previously hardcoded, so `BANK_TRANSFER` couldn't be selected for a licence at all |
+| `GET /payments/bank-details` | Any authenticated | Added for §5 A3 — surfaces the `BUSINESS_BANK_NAME`/`BUSINESS_ACCOUNT_NAME`/`BUSINESS_ACCOUNT_NUMBER` env vars, which nothing read before this |
 | `GET /payments/:id` | Any authenticated → **assertCanManage(payment's org)** | Added for §5 A3/D1 — this controller had no GET routes at all before, so there was no way to read a payment's status back |
 | `POST /payments/webhook` | Public | Paystack calls this; HMAC signature verification *is* the authentication |
 | `POST /payments/:id/verify` | Any authenticated | **No ownership check** — any logged-in user can poll any payment's status by ID. Low severity (read-only, no amount disclosed beyond status) but inconsistent with every other payment/invoice route requiring `assertCanManage` |

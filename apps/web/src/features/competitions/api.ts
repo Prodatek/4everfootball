@@ -11,7 +11,13 @@ import { apiClient } from "@/lib/api-client";
 // but untyped there. Extended locally rather than touching the shared
 // package for this pass.
 export type CompetitionTier = "COMMUNITY" | "LEAGUE" | "CHAMPIONSHIP" | "FEDERATION";
-export type LicenceStatus = "DRAFT" | "PENDING_PAYMENT" | "ACTIVE" | "CLOSED";
+export type LicenceStatus =
+  | "DRAFT"
+  | "AWAITING_DEPOSIT"
+  | "LICENSED"
+  | "ACTIVE"
+  | "CLOSED"
+  | "SUSPENDED";
 
 export type CompetitionWithLicence = Competition & {
   organisationId: string;
@@ -27,6 +33,7 @@ export interface CompetitionsQuery {
   type?: CompetitionType;
   country?: string;
   season?: string;
+  organisationId?: string;
   sortBy?: "name" | "season" | "startDate" | "createdAt";
   sortOrder?: "asc" | "desc";
 }
@@ -39,6 +46,7 @@ export interface CompetitionInput {
   startDate?: string;
   endDate?: string;
   logoUrl?: string;
+  organisationId?: string;
 }
 
 export async function fetchCompetitions(
@@ -80,6 +88,20 @@ export async function updateCompetition(
 
 export async function deleteCompetition(id: string): Promise<void> {
   await apiClient.delete(`/competitions/${id}`);
+}
+
+// §5 A2/A3 of MONETISATION_UI_BRIEF.md — see the API's
+// CompetitionsService.setTier() for why this is its own call rather than
+// folded into updateCompetition().
+export async function setCompetitionTier(
+  id: string,
+  tier: CompetitionTier,
+): Promise<CompetitionWithLicence> {
+  const { data } = await apiClient.patch<CompetitionWithLicence>(
+    `/competitions/${id}/tier`,
+    { tier },
+  );
+  return data;
 }
 
 export async function fetchCompetitionEntries(
