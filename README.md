@@ -6,6 +6,7 @@ Monorepo (pnpm workspaces): `apps/api` (NestJS + Prisma + PostgreSQL), `apps/web
 
 ```bash
 pnpm install
+pnpm --filter @4ef/shared build   # @4ef/shared ships compiled dist, not raw TS — rerun after editing packages/shared/src
 cp apps/api/.env.example apps/api/.env    # fill in JWT secrets
 cp apps/web/.env.example apps/web/.env.local
 docker compose up -d postgres redis meilisearch minio minio-init

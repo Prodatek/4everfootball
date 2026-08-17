@@ -2,7 +2,8 @@
   "extends": "@4ef/tsconfig/base.json",
   "compilerOptions": {
     "outDir": "dist",
-    "rootDir": "src"
+    "rootDir": "src",
+    "declaration": true
   },
   "include": ["src"]
 }

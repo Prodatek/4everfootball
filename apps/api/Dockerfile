@@ -33,6 +33,11 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm-store \
 
 FROM deps AS build
 COPY . .
+# @4ef/shared ships no dist of its own — `nest build`'s type-check reads its
+# raw .ts source directly, so this isn't needed to build `api`, but it IS
+# needed before `deploy` below: without it, the deployed workspace dep has
+# nothing at its "main" entry (./dist/index.js) for `require()` to find.
+RUN pnpm --filter @4ef/shared build
 RUN pnpm --filter @4ef/api exec prisma generate
 RUN pnpm --filter @4ef/api build
 
