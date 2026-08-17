@@ -2,9 +2,11 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Get,
   NotFoundException,
   Param,
   Post,
+  Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { JwtAccessPayload } from '@4ef/shared';
@@ -24,6 +26,35 @@ export class PlayerRegistrationsController {
     private readonly organisationsService: OrganisationsService,
     private readonly prisma: PrismaService,
   ) {}
+
+  // §5 A4/B4/B5/B6 of MONETISATION_UI_BRIEF.md — see
+  // PlayerRegistrationsService.listForCompetition(). Org-scoped to the
+  // competition's own organisation, same convention as everywhere else in
+  // this module.
+  @Get()
+  async list(
+    @Param('competitionId') competitionId: string,
+    @Query('teamId') teamId: string | undefined,
+    @CurrentUser() user: JwtAccessPayload,
+  ) {
+    const competition = await this.prisma.competition.findUnique({
+      where: { id: competitionId },
+    });
+
+    if (!competition) {
+      throw new NotFoundException('Competition not found');
+    }
+
+    await this.organisationsService.assertCanManage(
+      competition.organisationId,
+      user,
+    );
+
+    return this.registrationsService.listForCompetition(
+      competitionId,
+      teamId,
+    );
+  }
 
   @Post()
   async register(

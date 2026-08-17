@@ -6,6 +6,20 @@ import type {
 } from "@4ef/shared";
 import { apiClient } from "@/lib/api-client";
 
+// @4ef/shared's Competition type predates the licensing fields (Phase 2) —
+// they're present on the wire (the API's toPublic() spreads every column)
+// but untyped there. Extended locally rather than touching the shared
+// package for this pass.
+export type CompetitionTier = "COMMUNITY" | "LEAGUE" | "CHAMPIONSHIP" | "FEDERATION";
+export type LicenceStatus = "DRAFT" | "PENDING_PAYMENT" | "ACTIVE" | "CLOSED";
+
+export type CompetitionWithLicence = Competition & {
+  organisationId: string;
+  tier: CompetitionTier;
+  licenceStatus: LicenceStatus;
+  maxTeams: number | null;
+};
+
 export interface CompetitionsQuery {
   page?: number;
   limit?: number;

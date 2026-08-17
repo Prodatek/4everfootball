@@ -6,12 +6,14 @@ import {
 import type { OrganisationMemberRole } from '@prisma/client';
 import type { JwtAccessPayload } from '@4ef/shared';
 import { PrismaService } from '../../../common/prisma/prisma.service';
+import { paginate, type PaginatedResult } from '../../../common/dto/paginated-result';
 import {
   canCreateCommunityCompetition,
   checkTeamLimit,
   effectiveMaxTeams,
 } from '../domain/entitlements';
 import type { CreateOrganisationDto } from './dto/create-organisation.dto';
+import type { QueryOrganisationsDto } from './dto/query-organisations.dto';
 
 const MANAGE_ROLES: OrganisationMemberRole[] = ['OWNER', 'ADMIN'];
 // Phase 4 (brief §5.2): a coach's daily task (recording attendance) isn't
@@ -51,6 +53,47 @@ export class OrganisationsService {
     return this.prisma.organisation.findMany({
       where: { members: { some: { userId } } },
       orderBy: { name: 'asc' },
+    });
+  }
+
+  // §5 A1 of MONETISATION_UI_BRIEF.md needed an admin org list to build
+  // against — until now nothing on the API surface could enumerate
+  // organisations at all, only a single one by id or "mine" for the caller.
+  async listAll(
+    query: QueryOrganisationsDto,
+  ): Promise<PaginatedResult<unknown>> {
+    const where = query.search
+      ? { name: { contains: query.search, mode: 'insensitive' as const } }
+      : {};
+
+    const [data, total] = await Promise.all([
+      this.prisma.organisation.findMany({
+        where,
+        orderBy: { name: 'asc' },
+        skip: query.skip,
+        take: query.limit,
+      }),
+      this.prisma.organisation.count({ where }),
+    ]);
+
+    return paginate(data, total, query.page, query.limit);
+  }
+
+  // Same brief section — the members list existed only as a write target
+  // (addMember). Returns each member's role alongside the basic user
+  // fields the UI needs (name/email), never the password hash.
+  async listMembers(organisationId: string) {
+    return this.prisma.organisationMember.findMany({
+      where: { organisationId },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        userId: true,
+        role: true,
+        createdAt: true,
+        user: {
+          select: { id: true, displayName: true, email: true },
+        },
+      },
     });
   }
 

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { JwtAccessPayload } from '@4ef/shared';
 import { Roles } from '../../../common/decorators/roles.decorator';
@@ -6,6 +6,7 @@ import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { OrganisationsService } from '../application/organisations.service';
 import { CreateOrganisationDto } from '../application/dto/create-organisation.dto';
 import { AddOrganisationMemberDto } from '../application/dto/add-organisation-member.dto';
+import { QueryOrganisationsDto } from '../application/dto/query-organisations.dto';
 
 @ApiTags('organisations')
 @ApiBearerAuth()
@@ -29,10 +30,28 @@ export class OrganisationsController {
     return this.organisationsService.listForUser(user.sub);
   }
 
+  // §5 A1 of MONETISATION_UI_BRIEF.md — see OrganisationsService.listAll().
+  @Roles('SUPER_ADMIN', 'ADMIN')
+  @Get('admin/all')
+  listAll(@Query() query: QueryOrganisationsDto) {
+    return this.organisationsService.listAll(query);
+  }
+
   @Roles('SUPER_ADMIN', 'ADMIN')
   @Get(':id')
   getById(@Param('id') id: string) {
     return this.organisationsService.getById(id);
+  }
+
+  // Org-scoped (assertCanManage), same reasoning as addMember below — an
+  // org's own OWNER/ADMIN can see who's in it, not just a platform admin.
+  @Get(':id/members')
+  async listMembers(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtAccessPayload,
+  ) {
+    await this.organisationsService.assertCanManage(id, user);
+    return this.organisationsService.listMembers(id);
   }
 
   // Was never wired up despite OrganisationsService.addMember() existing

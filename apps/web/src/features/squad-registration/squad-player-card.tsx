@@ -49,56 +49,59 @@ export function SquadPlayerCard({
 
   return (
     <Card size="sm">
-      <CardContent className="flex items-center gap-4">
-        <EntityImage
-          src={player.photoUrl}
-          alt={`${player.firstName} ${player.lastName}`}
-          fallback="player"
-          className="size-14 shrink-0 rounded-md"
-        />
+      <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+        <div className="flex items-center gap-4">
+          <EntityImage
+            src={player.photoUrl}
+            alt={`${player.firstName} ${player.lastName}`}
+            fallback="player"
+            className="size-14 shrink-0 rounded-md"
+          />
 
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <div className="flex items-center gap-2">
-            <p className="truncate font-medium">
-              {player.firstName} {player.lastName}
-            </p>
-            {playerIsMinor && (
-              <span className="text-xs text-muted-foreground">
-                ({player.dateOfBirth ? calculateAge(player.dateOfBirth) : "?"})
-              </span>
-            )}
-          </div>
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <p className="truncate font-medium">
+                {player.firstName} {player.lastName}
+              </p>
+              {playerIsMinor && (
+                <span className="text-xs text-muted-foreground">
+                  ({player.dateOfBirth ? calculateAge(player.dateOfBirth) : "?"})
+                </span>
+              )}
+            </div>
 
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-            {isComplete ? (
-              <span className="flex items-center gap-1 text-live">
-                <CheckCircle2 className="size-3.5" />
-                Complete
-              </span>
-            ) : (
-              checks
-                .filter((c) => !c.done)
-                .map((c) => (
-                  <span
-                    key={c.label}
-                    className="flex items-center gap-1 text-muted-foreground"
-                  >
-                    <Circle className="size-3.5" />
-                    {c.label} missing
-                  </span>
-                ))
-            )}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+              {isComplete ? (
+                <span className="flex items-center gap-1 text-live">
+                  <CheckCircle2 className="size-3.5" />
+                  Complete
+                </span>
+              ) : (
+                checks
+                  .filter((c) => !c.done)
+                  .map((c) => (
+                    <span
+                      key={c.label}
+                      className="flex items-center gap-1 text-muted-foreground"
+                    >
+                      <Circle className="size-3.5" />
+                      {c.label} missing
+                    </span>
+                  ))
+              )}
+            </div>
           </div>
         </div>
 
-        <div className="flex shrink-0 gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={onEdit}>
+        <div className="flex shrink-0 gap-2 sm:ml-auto">
+          <Button type="button" variant="outline" size="sm" className="flex-1 sm:flex-initial" onClick={onEdit}>
             Edit
           </Button>
           <Button
             type="button"
             variant="ghost"
             size="sm"
+            className="flex-1 sm:flex-initial"
             disabled={isRemoving}
             onClick={onRemove}
           >

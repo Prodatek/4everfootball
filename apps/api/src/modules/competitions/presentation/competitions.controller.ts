@@ -18,6 +18,7 @@ import { CreateCompetitionDto } from '../application/dto/create-competition.dto'
 import { UpdateCompetitionDto } from '../application/dto/update-competition.dto';
 import { QueryCompetitionsDto } from '../application/dto/query-competitions.dto';
 import { AddEntryDto } from '../application/dto/add-entry.dto';
+import { SetCompetitionTierDto } from '../application/dto/set-competition-tier.dto';
 
 @ApiTags('competitions')
 @Controller('competitions')
@@ -63,6 +64,14 @@ export class CompetitionsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param('id') id: string) {
     return this.competitionsService.remove(id);
+  }
+
+  // §5 A2/A3 of MONETISATION_UI_BRIEF.md — see CompetitionsService.setTier().
+  @ApiBearerAuth()
+  @Roles('SUPER_ADMIN', 'ADMIN')
+  @Patch(':id/tier')
+  setTier(@Param('id') id: string, @Body() dto: SetCompetitionTierDto) {
+    return this.competitionsService.setTier(id, dto.tier);
   }
 
   @Public()

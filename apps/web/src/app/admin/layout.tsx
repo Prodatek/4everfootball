@@ -10,6 +10,7 @@ import { useAuth } from "@/features/auth/auth-context";
 const NAV_LINKS: { href: string; label: string; roles: Role[] }[] = [
   { href: "/admin", label: "Dashboard", roles: ["ADMIN", "SUPER_ADMIN"] },
   { href: "/admin/scouting", label: "Live Scouting", roles: ["SCOUT", "ADMIN", "SUPER_ADMIN"] },
+  { href: "/admin/organisations", label: "Organisations", roles: ["ADMIN", "SUPER_ADMIN"] },
   { href: "/admin/teams", label: "Teams", roles: ["ADMIN", "SUPER_ADMIN"] },
   { href: "/admin/players", label: "Players", roles: ["ADMIN", "SUPER_ADMIN"] },
   { href: "/admin/competitions", label: "Competitions", roles: ["ADMIN", "SUPER_ADMIN"] },

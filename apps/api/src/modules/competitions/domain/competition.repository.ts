@@ -1,4 +1,4 @@
-import type { CompetitionType } from '@prisma/client';
+import type { CompetitionTier, CompetitionType } from '@prisma/client';
 import type { CompetitionEntity } from './competition.entity';
 
 export const COMPETITION_REPOSITORY = Symbol('COMPETITION_REPOSITORY');
@@ -46,6 +46,12 @@ export type UpdateCompetitionInput = Partial<
 > & {
   slug?: string;
   isActive?: boolean;
+  // Set only via CompetitionsService.setTier() — the licence payment
+  // endpoint prices strictly off this field server-side, so it's kept out
+  // of the general-purpose UpdateCompetitionDto/update() to make the tier
+  // change a deliberate, explicit action rather than a side effect of an
+  // unrelated edit.
+  tier?: CompetitionTier;
 };
 
 export interface CompetitionEntryRecord {

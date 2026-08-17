@@ -163,6 +163,23 @@ export class PlayerRegistrationsService {
     }
   }
 
+  // §5 A4/B4/B5/B6 of MONETISATION_UI_BRIEF.md all need to read
+  // registration status back (who's registered, who's paid) — until now
+  // this service only ever wrote registrations, never listed them.
+  // Optional teamId narrows to one club's squad; omitted, it's every
+  // registration in the competition (what A4's dashboard needs).
+  async listForCompetition(competitionId: string, teamId?: string) {
+    return this.prisma.playerRegistration.findMany({
+      where: { competitionId, ...(teamId ? { teamId } : {}) },
+      orderBy: { createdAt: 'asc' },
+      include: {
+        player: {
+          select: { id: true, firstName: true, lastName: true, photoUrl: true },
+        },
+      },
+    });
+  }
+
   /**
    * §3.4: "Partial payment is allowed: a club can pay for 15 of 20
    * players; only the paid 15 become eligible" — checkout takes an explicit

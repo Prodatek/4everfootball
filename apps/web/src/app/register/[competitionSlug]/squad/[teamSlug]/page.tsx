@@ -11,7 +11,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Container } from "@/components/layout/container";
 import { fetchCompetitionBySlug } from "@/features/competitions/api";
 import { fetchTeamBySlug } from "@/features/teams/api";
-import { fetchPlayers, createPlayer, updatePlayer, deletePlayer } from "@/features/players/api";
+import {
+  fetchPlayers,
+  createPlayer,
+  updatePlayer,
+  deletePlayer,
+  type PlayerInput,
+} from "@/features/players/api";
 import { registerPlayerForCompetition } from "@/features/squad-registration/api";
 import {
   SquadPlayerFormDialog,
@@ -77,14 +83,14 @@ export default function SquadBuilderPage({
             firstName: values.firstName,
             lastName: values.lastName,
             dateOfBirth: values.dateOfBirth,
-            position: values.position as Player["position"],
+            position: values.position as PlayerInput["position"],
             photoUrl: values.photoUrl,
           })
         : await createPlayer({
             firstName: values.firstName,
             lastName: values.lastName,
             dateOfBirth: values.dateOfBirth,
-            position: values.position as Player["position"],
+            position: values.position as PlayerInput["position"],
             photoUrl: values.photoUrl,
             teamId: team!.id,
           });
@@ -227,7 +233,9 @@ export default function SquadBuilderPage({
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         player={editingPlayer}
-        onSubmit={(values) => saveMutation.mutateAsync(values)}
+        onSubmit={async (values) => {
+          await saveMutation.mutateAsync(values);
+        }}
         isSubmitting={saveMutation.isPending}
       />
     </Container>

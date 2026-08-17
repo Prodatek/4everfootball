@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Get,
   Headers,
   HttpCode,
   HttpStatus,
@@ -108,6 +109,30 @@ export class PaymentsController {
     // surfaced as an HTTP error, so Paystack doesn't retry-storm us for
     // something retrying won't fix (e.g. an unrecognized reference).
     return { received: true };
+  }
+
+  // §5 A3/D1 of MONETISATION_UI_BRIEF.md needed somewhere to read a
+  // payment's current status back — this controller had no GET routes at
+  // all before this. Org-scoped the same way initialize() above is: only
+  // the paying organisation (or a platform admin) can read it.
+  @ApiBearerAuth()
+  @Get(':id')
+  async getById(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtAccessPayload,
+  ) {
+    const payment = await this.prisma.payment.findUnique({ where: { id } });
+
+    if (!payment) {
+      throw new NotFoundException('Payment not found');
+    }
+
+    await this.organisationsService.assertCanManage(
+      payment.organisationId,
+      user,
+    );
+
+    return payment;
   }
 
   // The brief's second legitimate entitlement-granting path (never the

@@ -120,6 +120,7 @@ the actual intended access, not an oversight.
 | `GET /competitions/:slug` | Public | Increments `pageViewCount` |
 | `POST /competitions` | `SUPER_ADMIN`, `ADMIN` | Not organisation-scoped — any platform admin creates for any org (`organisationId` optional, defaults to the legacy org) |
 | `PATCH /competitions/:id` | `SUPER_ADMIN`, `ADMIN` | Includes the custom-slug field; slug uniqueness checked in the service |
+| `PATCH /competitions/:id/tier` | `SUPER_ADMIN`, `ADMIN` | Added for MONETISATION_UI_BRIEF.md §5 A2/A3 — separate from the general update so a tier change stays a deliberate action; `POST /payments/initialize` prices the licence strictly off this field, server-side |
 | `DELETE /competitions/:id` | `SUPER_ADMIN`, `ADMIN` | |
 | `GET /competitions/:id/teams` | Public | |
 | `POST /competitions/:id/teams` | `SUPER_ADMIN`, `ADMIN` | |
@@ -198,7 +199,9 @@ the actual intended access, not an oversight.
 |---|---|---|
 | `POST /organisations` | Any authenticated | Anyone can found an organisation — nothing to be a member of yet |
 | `GET /organisations/mine` | Any authenticated | Own memberships only |
+| `GET /organisations/admin/all` | `SUPER_ADMIN`, `ADMIN` | Added for MONETISATION_UI_BRIEF.md §5 A1 — previously nothing could list all organisations at all, only "mine" or a single one by id |
 | `GET /organisations/:id` | `SUPER_ADMIN`, `ADMIN` | Platform-role gate, not org-scoped — unlike almost everything else in this section |
+| `GET /organisations/:id/members` | Any authenticated → **assertCanManage(org)** | Added for §5 A1 — previously the members list existed only as a write target (`POST .../members`), never readable |
 | `POST /organisations/:id/members` | Any authenticated → **assertCanManage(org)** | Adds a member of any `OrganisationMemberRole`, including `COACH` |
 
 ## Payments (`/payments`)
@@ -206,6 +209,7 @@ the actual intended access, not an oversight.
 | Method & path | Access | Notes |
 |---|---|---|
 | `POST /payments/initialize` | Any authenticated → **assertCanManage(org)** | Licence payments only. `amountKobo` always server-computed from `pricing.ts`, never client-supplied |
+| `GET /payments/:id` | Any authenticated → **assertCanManage(payment's org)** | Added for §5 A3/D1 — this controller had no GET routes at all before, so there was no way to read a payment's status back |
 | `POST /payments/webhook` | Public | Paystack calls this; HMAC signature verification *is* the authentication |
 | `POST /payments/:id/verify` | Any authenticated | **No ownership check** — any logged-in user can poll any payment's status by ID. Low severity (read-only, no amount disclosed beyond status) but inconsistent with every other payment/invoice route requiring `assertCanManage` |
 | `POST /payments/:id/confirm-transfer` | `SUPER_ADMIN`, `ADMIN` | Bank-transfer/cash confirmation — platform-role gated, not org-scoped (any platform admin can confirm any organisation's transfer) |
@@ -214,6 +218,7 @@ the actual intended access, not an oversight.
 
 | Method & path | Access | Notes |
 |---|---|---|
+| `GET /competitions/:competitionId/registrations` | Any authenticated → **assertCanManage(competition's org)** | Added for §5 A4/B4/B5/B6 — previously this module could only write registrations, never list them back. Optional `?teamId=` narrows to one club's squad |
 | `POST /competitions/:competitionId/registrations` | Any authenticated → **assertCanManage(player's team's org)** | |
 | `POST /competitions/:competitionId/registrations/checkout` | Any authenticated → **assertCanManage(org)** | `amountKobo` always summed server-side from stored `priceKobo` snapshots |
 

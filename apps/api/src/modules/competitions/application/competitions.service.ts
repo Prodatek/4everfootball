@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { LEGACY_ORGANISATION_ID } from '@4ef/shared';
+import type { CompetitionTier } from '@prisma/client';
 import {
   paginate,
   type PaginatedResult,
@@ -137,6 +138,21 @@ export class CompetitionsService {
     }
 
     return publicCompetition;
+  }
+
+  // §5 A2/A3 of MONETISATION_UI_BRIEF.md: the tier wizard step needs
+  // somewhere to actually persist the organiser's choice — previously
+  // nothing on the API surface could set this field, so licence checkout
+  // (which prices strictly off it, server-side) had no way to complete.
+  async setTier(id: string, tier: CompetitionTier) {
+    const existing = await this.competitionRepository.findById(id);
+
+    if (!existing) {
+      throw new NotFoundException('Competition not found');
+    }
+
+    const competition = await this.competitionRepository.update(id, { tier });
+    return competition.toPublic();
   }
 
   async remove(id: string) {
