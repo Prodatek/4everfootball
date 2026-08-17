@@ -6,7 +6,9 @@ Running log per `MONETISATION_UI_BRIEF.md` §8.5. Newest entries first.
 
 ## Phase A — Organiser onboarding and competition licensing
 
-**Status: built, pending final live verification (backend rebuild in flight).**
+**Status: built and verified live end-to-end** (org create → wizard → tier selection → competition created → licence checkout via bank transfer → payment created and correctly shown as "Awaiting confirmation" with a real reference → dashboard reflecting live registration/licence state). Screenshots confirm all four screens render correctly against the real API, not just typecheck-clean.
+
+One real bug found and fixed during live verification: A3 originally had two separate buttons that both effectively meant "I've sent it" — the actual submit action, and a redundant second acknowledgment button on the awaiting-confirmation view. Removed the second one and rewrote the awaiting-confirmation copy to be honest about what's actually known at that point (a bank transfer is *claimed* sent, not *confirmed* received — worded accordingly, distinct from the card-payment copy).
 
 ### A1 · Organisation setup
 - `/admin/organisations` — list (Table, matches `admin/teams` pattern), "New organisation" dialog.

@@ -31,7 +31,6 @@ export default function LicenceCheckoutPage({
 
   const [provider, setProvider] = useState<PaymentProvider>("PAYSTACK");
   const [paymentId, setPaymentId] = useState<string | null>(null);
-  const [sentAcknowledged, setSentAcknowledged] = useState(false);
 
   const {
     data: competition,
@@ -194,17 +193,19 @@ export default function LicenceCheckoutPage({
           {payment && payment.status === "PENDING" && (
             <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/50 p-4">
               <PaymentStatusBadge status="PENDING" />
-              <p className="text-sm">
-                We&apos;ve received your payment and are confirming it. This usually takes a few
-                seconds
-                {payment.provider === "BANK_TRANSFER" && " once your transfer is confirmed"}.
-              </p>
-              <p className="text-xs text-muted-foreground">Reference: {payment.reference}</p>
-              {payment.provider === "BANK_TRANSFER" && !sentAcknowledged && (
-                <Button type="button" size="sm" onClick={() => setSentAcknowledged(true)}>
-                  I&apos;ve sent the transfer
-                </Button>
+              {payment.provider === "BANK_TRANSFER" ? (
+                <p className="text-sm">
+                  We&apos;re waiting to confirm your transfer — this can take a little longer than
+                  a card payment. Quote the reference below; we&apos;ll update this page
+                  automatically once it&apos;s confirmed.
+                </p>
+              ) : (
+                <p className="text-sm">
+                  We&apos;ve received your payment and are confirming it. This usually takes a few
+                  seconds.
+                </p>
               )}
+              <p className="text-xs text-muted-foreground">Reference: {payment.reference}</p>
             </div>
           )}
 
