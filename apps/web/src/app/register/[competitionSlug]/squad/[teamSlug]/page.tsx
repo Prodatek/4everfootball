@@ -165,6 +165,23 @@ export default function SquadBuilderPage({
 
       <RunningCostBar playerCount={players.length} />
 
+      {players.length > 0 && (
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            render={<Link href={`/register/${competition.slug}/squad/${team.slug}/pay`} />}
+          >
+            Review squad and pay
+          </Button>
+          <Button
+            variant="outline"
+            render={<Link href={`/register/${competition.slug}/squad/${team.slug}/status`} />}
+          >
+            View status
+          </Button>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <h2 className="font-heading text-lg uppercase">Players</h2>
         <Button

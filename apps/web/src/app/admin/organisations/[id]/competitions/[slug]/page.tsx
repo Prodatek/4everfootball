@@ -164,6 +164,14 @@ export default function CompetitionDashboardPage({
         <p className="text-sm text-destructive">Failed to load registration progress.</p>
       )}
 
+      <Button
+        variant="outline"
+        className="w-fit"
+        render={<Link href={`/admin/organisations/${organisationId}/competitions/${slug}/registrations`} />}
+      >
+        Manage registrations
+      </Button>
+
       <div className="flex flex-col gap-3">
         <h2 className="font-heading text-lg uppercase">Upcoming fixtures</h2>
         {fixturesLoading && <Skeleton className="h-16 rounded-md" />}

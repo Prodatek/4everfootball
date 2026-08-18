@@ -8,6 +8,11 @@ export interface TeamProps {
   logoUrl: string | null;
   venueName: string | null;
   isActive: boolean;
+  // Was always on the underlying Prisma record (toPublic() already spread
+  // it onto every API response) but never declared here, so nothing inside
+  // this module could type-check reading it. Needed for
+  // TeamsService.claim() — see MONETISATION_UI_BRIEF.md §5 B2.
+  organisationId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

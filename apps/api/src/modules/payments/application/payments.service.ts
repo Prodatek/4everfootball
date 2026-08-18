@@ -209,6 +209,16 @@ export class PaymentsService {
       );
     }
 
+    // §5 B6: "a manual override for the club that paid cash at the venue —
+    // which must capture a reason." CASH has no bank reference/proof to
+    // fall back on the way a transfer does, so the note is the only record
+    // of why this was marked paid — required, not optional, for this path.
+    if (payment.provider === 'CASH' && !details.transferNote?.trim()) {
+      throw new BadRequestException(
+        'A reason is required to mark a cash payment as paid',
+      );
+    }
+
     await this.prisma.payment.update({
       where: { id: paymentId },
       data: {

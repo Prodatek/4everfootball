@@ -181,6 +181,58 @@ export class PlayerRegistrationsService {
   }
 
   /**
+   * §5 B5 of MONETISATION_UI_BRIEF.md — the sanitized read behind the
+   * public share link. Deliberately narrow: player names + status only,
+   * never guardianName/Phone/Email (consent data, brief §6) and never a
+   * per-player priceKobo (only the aggregate owed, which reveals nothing
+   * an outsider couldn't infer from "N of M paid" anyway).
+   */
+  async getPublicSquadStatus(competitionId: string, teamId: string) {
+    const [competition, team, registrations] = await Promise.all([
+      this.prisma.competition.findUnique({
+        where: { id: competitionId },
+        select: { name: true },
+      }),
+      this.prisma.team.findUnique({
+        where: { id: teamId },
+        select: { name: true, logoUrl: true },
+      }),
+      this.prisma.playerRegistration.findMany({
+        where: { competitionId, teamId },
+        orderBy: { createdAt: 'asc' },
+        select: {
+          status: true,
+          priceKobo: true,
+          player: { select: { firstName: true, lastName: true } },
+        },
+      }),
+    ]);
+
+    if (!competition || !team) {
+      throw new NotFoundException('Squad status not found');
+    }
+
+    const paidStatuses = new Set(['CONFIRMED', 'LOCKED']);
+    const outstandingKobo = registrations
+      .filter((r) => !paidStatuses.has(r.status))
+      .reduce((sum, r) => sum + r.priceKobo, 0);
+
+    return {
+      competitionName: competition.name,
+      teamName: team.name,
+      teamLogoUrl: team.logoUrl,
+      players: registrations.map((r) => ({
+        firstName: r.player.firstName,
+        lastName: r.player.lastName,
+        status: r.status,
+      })),
+      totalPlayers: registrations.length,
+      paidPlayers: registrations.filter((r) => paidStatuses.has(r.status)).length,
+      outstandingKobo,
+    };
+  }
+
+  /**
    * §3.4: "Partial payment is allowed: a club can pay for 15 of 20
    * players; only the paid 15 become eligible" — checkout takes an explicit
    * list of registration ids the club is choosing to pay for right now, not
@@ -238,6 +290,95 @@ export class PlayerRegistrationsService {
     });
 
     return { payment, authorizationUrl };
+  }
+
+  /**
+   * §5 B6 of MONETISATION_UI_BRIEF.md: "a manual override for the club
+   * that paid cash at the venue — which must capture a reason and show
+   * that the record is marked as an override, because it is logged."
+   *
+   * Deliberately separate from checkout(): that method is org-scoped to
+   * the PAYING club (the club authorizes its own payment), but this action
+   * is taken by the COMPETITION's organiser on the club's behalf — a
+   * different actor who is very likely not a member of the club's
+   * organisation at all. The controller authorizes against the
+   * competition's own organisation, not the club's.
+   */
+  async recordCashOverride(
+    competitionId: string,
+    registrationIds: string[],
+    reason: string,
+    confirmedByUserId: string,
+  ) {
+    if (registrationIds.length === 0) {
+      throw new BadRequestException('No registrations selected');
+    }
+
+    if (!reason.trim()) {
+      throw new BadRequestException(
+        'A reason is required to record a cash override',
+      );
+    }
+
+    const registrations = await this.prisma.playerRegistration.findMany({
+      where: { id: { in: registrationIds } },
+    });
+
+    if (registrations.length !== registrationIds.length) {
+      throw new NotFoundException('One or more registrations were not found');
+    }
+
+    if (!registrations.every((r) => r.competitionId === competitionId)) {
+      throw new BadRequestException(
+        'All selected registrations must belong to this competition',
+      );
+    }
+
+    const notPending = registrations.filter(
+      (r) => r.status !== 'DRAFT' && r.status !== 'PENDING_PAYMENT',
+    );
+    if (notPending.length > 0) {
+      throw new BadRequestException(
+        `${notPending.length} of the selected registrations are already paid or locked`,
+      );
+    }
+
+    const teamId = registrations[0].teamId;
+    if (!registrations.every((r) => r.teamId === teamId)) {
+      throw new BadRequestException(
+        'All selected registrations must belong to the same team',
+      );
+    }
+
+    const team = await this.prisma.team.findUnique({ where: { id: teamId } });
+    if (!team?.organisationId) {
+      throw new BadRequestException(
+        'This team is not linked to a club account yet',
+      );
+    }
+
+    const amountKobo = registrations.reduce((sum, r) => sum + r.priceKobo, 0);
+
+    const { payment } = await this.paymentsService.initialize({
+      organisationId: team.organisationId,
+      provider: 'CASH',
+      purpose: 'PLAYER_REGISTRATION',
+      subjectType: 'TEAM',
+      subjectId: teamId,
+      amountKobo,
+      payerEmail: '',
+    });
+
+    await this.prisma.playerRegistration.updateMany({
+      where: { id: { in: registrationIds } },
+      data: { paymentId: payment.id, status: 'PENDING_PAYMENT' },
+    });
+
+    await this.paymentsService.confirmBankTransfer(payment.id, confirmedByUserId, {
+      transferNote: reason,
+    });
+
+    return payment;
   }
 
   /**

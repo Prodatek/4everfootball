@@ -18,7 +18,6 @@ import { ConfigService } from '@nestjs/config';
 import { COMPETITION_TIERS, type CompetitionTierKey } from '@4ef/shared';
 import type { JwtAccessPayload } from '@4ef/shared';
 import { Public } from '../../../common/decorators/public.decorator';
-import { Roles } from '../../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { OrganisationsService } from '../../organisations/application/organisations.service';
@@ -172,14 +171,29 @@ export class PaymentsController {
     return { status: result.status };
   }
 
+  // Was platform-admin-only; loosened for §5 B6 of
+  // MONETISATION_UI_BRIEF.md's organiser console, which needs to record a
+  // "paid cash at the venue" override itself rather than routing every one
+  // through platform staff. A platform admin can still confirm any
+  // organisation's transfer, same convention as everywhere else.
   @ApiBearerAuth()
-  @Roles('SUPER_ADMIN', 'ADMIN')
   @Post(':id/confirm-transfer')
   async confirmTransfer(
     @Param('id') id: string,
     @Body() dto: ConfirmBankTransferDto,
     @CurrentUser() user: JwtAccessPayload,
   ) {
+    const payment = await this.prisma.payment.findUnique({ where: { id } });
+
+    if (!payment) {
+      throw new NotFoundException('Payment not found');
+    }
+
+    await this.organisationsService.assertCanManage(
+      payment.organisationId,
+      user,
+    );
+
     await this.paymentsService.confirmBankTransfer(id, user.sub, dto);
     return { confirmed: true };
   }

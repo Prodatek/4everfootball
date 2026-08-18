@@ -37,6 +37,7 @@ export class TeamsService {
       limit: query.limit,
       search: query.search,
       country: query.country,
+      unclaimed: query.unclaimed,
       sortBy: query.sortBy,
       sortOrder: query.sortOrder,
       includeInactive,
@@ -115,6 +116,29 @@ export class TeamsService {
 
     await this.teamRepository.delete(id);
     void this.searchService.deleteTeam(id);
+  }
+
+  /**
+   * §5 B2 of MONETISATION_UI_BRIEF.md: a new club account attaches an
+   * existing, unclaimed team to their organisation. One-way and one-time —
+   * a team that's already claimed can't be claimed again (not even by a
+   * platform admin through this method; that's a plain PATCH if it's ever
+   * genuinely needed), so a club can't silently steal another club's team
+   * by racing a claim.
+   */
+  async claim(teamId: string, organisationId: string) {
+    const existing = await this.teamRepository.findById(teamId);
+
+    if (!existing) {
+      throw new NotFoundException('Team not found');
+    }
+
+    if (existing.toPublic().organisationId) {
+      throw new ConflictException('This team already belongs to a club account');
+    }
+
+    const team = await this.teamRepository.update(teamId, { organisationId });
+    return team.toPublic();
   }
 
   private async generateUniqueSlug(name: string): Promise<string> {

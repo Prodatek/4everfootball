@@ -1,6 +1,7 @@
 import { ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import {
   IsBoolean,
+  IsDateString,
   IsOptional,
   IsString,
   Matches,
@@ -28,4 +29,22 @@ export class UpdateCompetitionDto extends PartialType(CreateCompetitionDto) {
     message: 'slug must be lowercase letters, numbers, and hyphens only',
   })
   slug?: string;
+
+  // §5 B1 of MONETISATION_UI_BRIEF.md — the public landing page shows a
+  // registration window. Deliberately NOT adding registrationFeeKobo here
+  // even though the column exists: it's never read by
+  // PlayerRegistrationsService.register() (which always prices off
+  // PLAYER_REGISTRATION.STANDARD), so exposing it as settable would let an
+  // organiser configure a price the checkout doesn't actually honour — a
+  // real money-correctness risk, not just an incomplete feature. B1 shows
+  // the real STANDARD price from @4ef/shared instead.
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  registrationOpensAt?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  registrationClosesAt?: string;
 }

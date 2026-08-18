@@ -123,6 +123,12 @@ export class CompetitionsService {
       ...dto,
       startDate: dto.startDate ? new Date(dto.startDate) : undefined,
       endDate: dto.endDate ? new Date(dto.endDate) : undefined,
+      registrationOpensAt: dto.registrationOpensAt
+        ? new Date(dto.registrationOpensAt)
+        : undefined,
+      registrationClosesAt: dto.registrationClosesAt
+        ? new Date(dto.registrationClosesAt)
+        : undefined,
     });
     const publicCompetition = competition.toPublic();
 

@@ -1,5 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
+import { Type } from 'class-transformer';
 import { PaginationQueryDto } from '../../../../common/dto/pagination-query.dto';
 import type { SortOrder, TeamSortField } from '../../domain/team.repository';
 
@@ -15,6 +16,12 @@ export class QueryTeamsDto extends PaginationQueryDto {
   @IsString()
   @MaxLength(80)
   country?: string;
+
+  @ApiPropertyOptional({ description: 'Only teams with no organisation yet' })
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  unclaimed?: boolean;
 
   @ApiPropertyOptional({ enum: ['name', 'foundedYear', 'createdAt'] })
   @IsOptional()

@@ -10,6 +10,10 @@ export interface TeamListFilters {
   limit: number;
   search?: string;
   country?: string;
+  // §5 B2 of MONETISATION_UI_BRIEF.md — lets a new club account search for
+  // an existing, not-yet-claimed team (organisationId IS NULL) to attach
+  // to their organisation via TeamsService.claim().
+  unclaimed?: boolean;
   sortBy: TeamSortField;
   sortOrder: SortOrder;
   includeInactive?: boolean;
@@ -33,6 +37,10 @@ export interface CreateTeamInput {
 export type UpdateTeamInput = Partial<Omit<CreateTeamInput, 'slug'>> & {
   slug?: string;
   isActive?: boolean;
+  // Set only via TeamsService.claim() — deliberately kept out of
+  // UpdateTeamDto (a platform-admin-only route) since claiming is an
+  // org-scoped self-service action with its own authorization check.
+  organisationId?: string;
 };
 
 export interface TeamRepository {

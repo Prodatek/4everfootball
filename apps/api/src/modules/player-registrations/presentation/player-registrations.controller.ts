@@ -9,13 +9,20 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ConfigService } from '@nestjs/config';
 import type { JwtAccessPayload } from '@4ef/shared';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { Public } from '../../../common/decorators/public.decorator';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { OrganisationsService } from '../../organisations/application/organisations.service';
 import { PlayerRegistrationsService } from '../application/player-registrations.service';
 import { RegisterPlayerDto } from '../application/dto/register-player.dto';
 import { CheckoutRegistrationsDto } from '../application/dto/checkout-registrations.dto';
+import { CashOverrideDto } from '../application/dto/cash-override.dto';
+import {
+  generateSquadShareToken,
+  verifySquadShareToken,
+} from '../domain/squad-share-token';
 
 @ApiTags('player-registrations')
 @ApiBearerAuth()
@@ -25,6 +32,7 @@ export class PlayerRegistrationsController {
     private readonly registrationsService: PlayerRegistrationsService,
     private readonly organisationsService: OrganisationsService,
     private readonly prisma: PrismaService,
+    private readonly config: ConfigService,
   ) {}
 
   // §5 A4/B4/B5/B6 of MONETISATION_UI_BRIEF.md — see
@@ -54,6 +62,50 @@ export class PlayerRegistrationsController {
       competitionId,
       teamId,
     );
+  }
+
+  // §5 B5 of MONETISATION_UI_BRIEF.md — the club-side, authenticated call
+  // that fetches the token to build a shareable link from. Org-scoped: only
+  // the club that owns the team can generate/see its own share link.
+  @Get('share-token')
+  async getShareToken(
+    @Param('competitionId') competitionId: string,
+    @Query('teamId') teamId: string,
+    @CurrentUser() user: JwtAccessPayload,
+  ) {
+    await this.assertCanManageTeam(teamId, user);
+    return {
+      token: generateSquadShareToken(
+        this.config.get<string>('JWT_ACCESS_SECRET')!,
+        competitionId,
+        teamId,
+      ),
+    };
+  }
+
+  // The public side of the same link — no login. Deliberately sanitized:
+  // player name + registration status only, never guardian consent details
+  // or the raw priceKobo breakdown (see PlayerRegistrationsService's public
+  // read for exactly what's stripped).
+  @Public()
+  @Get('public')
+  async getPublicStatus(
+    @Param('competitionId') competitionId: string,
+    @Query('teamId') teamId: string,
+    @Query('token') token: string,
+  ) {
+    const valid = verifySquadShareToken(
+      this.config.get<string>('JWT_ACCESS_SECRET')!,
+      competitionId,
+      teamId,
+      token ?? '',
+    );
+
+    if (!valid) {
+      throw new NotFoundException('Squad status not found');
+    }
+
+    return this.registrationsService.getPublicSquadStatus(competitionId, teamId);
   }
 
   @Post()
@@ -89,6 +141,38 @@ export class PlayerRegistrationsController {
       dto.organisationId,
       dto.provider,
       dto.payerEmail,
+    );
+  }
+
+  // §5 B6 — see PlayerRegistrationsService.recordCashOverride(). Org-scoped
+  // to the COMPETITION's organisation (the organiser), not the paying
+  // club's — this is the organiser recording cash collected at the venue
+  // on a club's behalf, a different actor than checkout()'s self-service
+  // club payer.
+  @Post('cash-override')
+  async cashOverride(
+    @Param('competitionId') competitionId: string,
+    @Body() dto: CashOverrideDto,
+    @CurrentUser() user: JwtAccessPayload,
+  ) {
+    const competition = await this.prisma.competition.findUnique({
+      where: { id: competitionId },
+    });
+
+    if (!competition) {
+      throw new NotFoundException('Competition not found');
+    }
+
+    await this.organisationsService.assertCanManage(
+      competition.organisationId,
+      user,
+    );
+
+    return this.registrationsService.recordCashOverride(
+      competitionId,
+      dto.registrationIds,
+      dto.reason,
+      user.sub,
     );
   }
 

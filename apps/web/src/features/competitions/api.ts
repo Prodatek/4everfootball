@@ -24,6 +24,8 @@ export type CompetitionWithLicence = Competition & {
   tier: CompetitionTier;
   licenceStatus: LicenceStatus;
   maxTeams: number | null;
+  registrationOpensAt: string | null;
+  registrationClosesAt: string | null;
 };
 
 export interface CompetitionsQuery {

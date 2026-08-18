@@ -55,6 +55,11 @@ export type UpdateCompetitionInput = Partial<
   // change a deliberate, explicit action rather than a side effect of an
   // unrelated edit.
   tier?: CompetitionTier;
+  // §5 B1 of MONETISATION_UI_BRIEF.md — the registration window shown on
+  // the public landing page. Deliberately not registrationFeeKobo, see
+  // UpdateCompetitionDto's comment.
+  registrationOpensAt?: Date;
+  registrationClosesAt?: Date;
 };
 
 export interface CompetitionEntryRecord {

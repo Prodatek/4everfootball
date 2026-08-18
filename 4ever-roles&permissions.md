@@ -86,14 +86,15 @@ the actual intended access, not an oversight.
 
 ## Teams (`/teams`)
 
-| Method & path | Access |
-|---|---|
-| `GET /teams` | Public |
-| `GET /teams/admin/all` | `SUPER_ADMIN`, `ADMIN` |
-| `GET /teams/:slug` | Public |
-| `POST /teams` | `SUPER_ADMIN`, `ADMIN` |
-| `PATCH /teams/:id` | `SUPER_ADMIN`, `ADMIN` |
-| `DELETE /teams/:id` | `SUPER_ADMIN`, `ADMIN` |
+| Method & path | Access | Notes |
+|---|---|---|
+| `GET /teams` | Public | `?unclaimed=true` (added for §5 B2) filters to `organisationId IS NULL` — used by the club-claim search |
+| `GET /teams/admin/all` | `SUPER_ADMIN`, `ADMIN` | |
+| `GET /teams/:slug` | Public | |
+| `POST /teams` | `SUPER_ADMIN`, `ADMIN` | |
+| `POST /teams/:id/claim` | Any authenticated → **assertCanManage(org)** | Added for §5 B2 — a new club account attaches an existing unclaimed team to itself. One-way: a team already claimed by any org can't be claimed again through this route, by anyone, including a platform admin |
+| `PATCH /teams/:id` | `SUPER_ADMIN`, `ADMIN` | |
+| `DELETE /teams/:id` | `SUPER_ADMIN`, `ADMIN` | |
 
 ## Players (`/players`)
 
@@ -119,7 +120,7 @@ the actual intended access, not an oversight.
 | `GET /competitions/admin/all` | `SUPER_ADMIN`, `ADMIN` | |
 | `GET /competitions/:slug` | Public | Increments `pageViewCount` |
 | `POST /competitions` | `SUPER_ADMIN`, `ADMIN` | Not organisation-scoped — any platform admin creates for any org (`organisationId` optional, defaults to the legacy org) |
-| `PATCH /competitions/:id` | `SUPER_ADMIN`, `ADMIN` | Includes the custom-slug field; slug uniqueness checked in the service |
+| `PATCH /competitions/:id` | `SUPER_ADMIN`, `ADMIN` | Includes the custom-slug field; slug uniqueness checked in the service. Now also `registrationOpensAt`/`registrationClosesAt` (§5 B1) — deliberately NOT `registrationFeeKobo`, which exists as a column but is never read by pricing logic; exposing it as settable would let an organiser configure a price checkout doesn't actually honour |
 | `PATCH /competitions/:id/tier` | `SUPER_ADMIN`, `ADMIN` | Added for MONETISATION_UI_BRIEF.md §5 A2/A3 — separate from the general update so a tier change stays a deliberate action; `POST /payments/initialize` prices the licence strictly off this field, server-side |
 | `DELETE /competitions/:id` | `SUPER_ADMIN`, `ADMIN` | |
 | `GET /competitions/:id/teams` | Public | |
@@ -213,15 +214,18 @@ the actual intended access, not an oversight.
 | `GET /payments/:id` | Any authenticated → **assertCanManage(payment's org)** | Added for §5 A3/D1 — this controller had no GET routes at all before, so there was no way to read a payment's status back |
 | `POST /payments/webhook` | Public | Paystack calls this; HMAC signature verification *is* the authentication |
 | `POST /payments/:id/verify` | Any authenticated | **No ownership check** — any logged-in user can poll any payment's status by ID. Low severity (read-only, no amount disclosed beyond status) but inconsistent with every other payment/invoice route requiring `assertCanManage` |
-| `POST /payments/:id/confirm-transfer` | `SUPER_ADMIN`, `ADMIN` | Bank-transfer/cash confirmation — platform-role gated, not org-scoped (any platform admin can confirm any organisation's transfer) |
+| `POST /payments/:id/confirm-transfer` | Any authenticated → **assertCanManage(payment's org)** | Bank-transfer/cash confirmation. Was platform-role-only; loosened for §5 B6 so an organisation can confirm its own transfer without needing platform staff — a platform admin can still confirm any organisation's. `CASH` provider now requires a non-empty `transferNote` (the override reason) |
 
 ## Player registrations (`/competitions/:competitionId/registrations`)
 
 | Method & path | Access | Notes |
 |---|---|---|
 | `GET /competitions/:competitionId/registrations` | Any authenticated → **assertCanManage(competition's org)** | Added for §5 A4/B4/B5/B6 — previously this module could only write registrations, never list them back. Optional `?teamId=` narrows to one club's squad |
+| `GET /competitions/:competitionId/registrations/share-token?teamId=` | Any authenticated → **assertCanManage(team's org)** | Added for §5 B5 — the club-side call that fetches the token to build its own shareable link |
+| `GET /competitions/:competitionId/registrations/public?teamId=&token=` | Public | Added for §5 B5 — the no-login shareable link itself. Signature-verified (`squad-share-token.ts`, HMAC off `JWT_ACCESS_SECRET`), not a DB lookup — un-guessable without the secret but not individually revocable. Response is sanitized: player name + status + aggregate owed only, never guardian consent fields or per-player price |
 | `POST /competitions/:competitionId/registrations` | Any authenticated → **assertCanManage(player's team's org)** | |
 | `POST /competitions/:competitionId/registrations/checkout` | Any authenticated → **assertCanManage(org)** | `amountKobo` always summed server-side from stored `priceKobo` snapshots |
+| `POST /competitions/:competitionId/registrations/cash-override` | Any authenticated → **assertCanManage(competition's org)** | Added for §5 B6 — the organiser (not the paying club) records cash collected at the venue. Deliberately org-scoped to the *competition's* organisation rather than the club's, since the organiser is very likely not a member of the club's organisation. Requires a non-empty `reason`, logged via the same `Payment.confirmedById`/`transferNote` fields `confirm-transfer` uses |
 
 ## Invoices (`/invoices`)
 
