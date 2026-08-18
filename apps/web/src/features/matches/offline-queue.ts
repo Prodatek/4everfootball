@@ -48,6 +48,8 @@ function toPayload(item: QueuedEvent): RecordMatchEventInput {
     playerId: item.playerId,
     assistPlayerId: item.assistPlayerId,
     metadata: item.metadata,
+    correctsEventId: item.correctsEventId,
+    correctionReason: item.correctionReason,
   };
 }
 
@@ -127,5 +129,12 @@ export function useOfflineEventQueue(fixtureId: string, onSynced?: (event: Match
     return () => clearInterval(interval);
   }, [drain]);
 
-  return { pendingEvents: queue, enqueue, pendingCount: queue.length };
+  return {
+    pendingEvents: queue,
+    enqueue,
+    pendingCount: queue.length,
+    // Exposed for the persistent sync indicator's manual "Sync now" —
+    // brief §4.4 requires a manual control, not just automatic retry.
+    syncNow: drain,
+  };
 }

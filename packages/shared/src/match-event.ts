@@ -106,6 +106,10 @@ export interface VerifyMatchEventsResult {
   lastHash: string | null;
   verifiedAt: string;
   brokenAtEventId?: string;
+  // §5 C3 of MONETISATION_UI_BRIEF.md's verification panel — every distinct
+  // recorder across the match's events, not just the first (a substitute
+  // scout or a later correction can add a second name).
+  recordedBy: string[];
 }
 
 export interface MatchLiveState {

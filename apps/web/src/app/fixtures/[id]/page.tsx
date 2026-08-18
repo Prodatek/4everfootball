@@ -11,6 +11,7 @@ import { Container } from "@/components/layout/container";
 import { fetchFixtureById } from "@/features/fixtures/api";
 import { useLiveMatch } from "@/features/matches/use-live-match";
 import { MatchTimeline } from "@/features/matches/match-timeline";
+import { VerifiedRecordBadge } from "@/features/matches/verified-record-badge";
 import { useAuth } from "@/features/auth/auth-context";
 
 export default function FixtureDetailPage({
@@ -116,6 +117,7 @@ export default function FixtureDetailPage({
               <span className="text-muted-foreground">Matchday:</span> {fixture.matchday}
             </p>
           )}
+          <VerifiedRecordBadge fixtureId={fixture.id} />
         </CardContent>
       </Card>
 

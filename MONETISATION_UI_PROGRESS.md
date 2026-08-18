@@ -6,7 +6,11 @@ Running log per `MONETISATION_UI_BRIEF.md` §8.5. Newest entries first.
 
 ## Phase B — Club registration and the payment gate
 
-**Status: built, typechecked, backend tests passing (91 tests across competitions/teams/payments/player-registrations/organisations). Pending live verification (backend rebuild in flight).** B3 (squad builder) was already built and approved as the pilot; this covers B1, B2, B4, B5, B6.
+**Status: built and verified live end-to-end.** Full flow run against the real API: claimed an unclaimed team through B2's auto-skipping wizard → added a player through B3 (already-approved pilot) → paid via B4's bank-transfer path → watched B5's status page (both the authenticated view and the actual public share link, opened in a separate unauthenticated browser context) reflect it correctly → used B6's organiser console to cash-override a second registration, checkbox → mandatory-reason dialog → confirm → team badge flips to "fully paid" with a toast. Screenshots confirm every screen renders correctly, not just typecheck-clean. B3 (squad builder) was already built and approved as the pilot; this covers B1, B2, B4, B5, B6.
+
+**Two real bugs found and fixed during this verification pass:**
+1. `CheckoutRegistrationsDto.payerEmail` was required, but B4 never sends one (bank transfer doesn't need it) — checkout failed outright. Same class of bug already fixed for licence payments in Phase A, missed in this twin code path. Fixed the same way: optional, falls back to the current user's account email server-side.
+2. B6's console showed "Unknown team" for every club — it was cross-referencing `CompetitionEntry` (a separate, admin-only "add team to competition" mechanism for standings) to resolve team names, but registering a squad never requires or creates one. Fixed at the root: `listForCompetition()` now includes the team directly in its Prisma query, so the frontend never needs to cross-reference a second, possibly-empty list.
 
 ### B1 · Public registration landing
 - `/register/[competitionSlug]` — the only Server Component page in the app (deliberately: WhatsApp's link-preview crawler doesn't execute JS, so this needed real SSR'd `generateMetadata`, not a client fetch). Shows branding, registration window, per-player cost, what a club needs to hand over, one CTA.

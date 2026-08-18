@@ -61,6 +61,7 @@ describe('MatchEventsService', () => {
     playerRegistration: { findUnique: jest.Mock };
     fixture: { findUnique: jest.Mock; count: jest.Mock; update: jest.Mock };
     matchEvent: { count: jest.Mock; findMany: jest.Mock };
+    user: { findMany: jest.Mock };
   };
 
   beforeEach(async () => {
@@ -107,6 +108,12 @@ describe('MatchEventsService', () => {
             },
             matchEvent: {
               count: jest.fn().mockResolvedValue(0),
+              findMany: jest.fn().mockResolvedValue([]),
+            },
+            // verifyChain()'s recorder-identity lookup (§5 C3) — empty by
+            // default since most existing tests here don't care who
+            // recorded the events they're checking the hash chain for.
+            user: {
               findMany: jest.fn().mockResolvedValue([]),
             },
           },

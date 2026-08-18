@@ -22,6 +22,8 @@ export interface RecordMatchEventInput {
   playerId?: string;
   assistPlayerId?: string;
   metadata?: Record<string, unknown>;
+  correctsEventId?: string;
+  correctionReason?: string;
 }
 
 export async function recordMatchEvent(

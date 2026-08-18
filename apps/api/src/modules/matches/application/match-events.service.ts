@@ -101,7 +101,25 @@ export class MatchEventsService {
     const chained: ChainedEvent[] = events.map((event) => event.toHashable());
     const result = verifyEventChain(fixtureId, chained);
 
-    return { ...result, verifiedAt: new Date().toISOString() };
+    // §5 C3 of MONETISATION_UI_BRIEF.md: the badge panel wants "the
+    // recorder identity" — recordedById was always stored per event but
+    // never surfaced here. A match can have more than one recorder (a
+    // substitute scout taking over, or a correction filed by someone
+    // else), so this is every distinct one, not just the first.
+    const recorderIds = [...new Set(events.map((event) => event.toPublic().recordedById))];
+    const recorders =
+      recorderIds.length > 0
+        ? await this.prisma.user.findMany({
+            where: { id: { in: recorderIds } },
+            select: { displayName: true },
+          })
+        : [];
+
+    return {
+      ...result,
+      verifiedAt: new Date().toISOString(),
+      recordedBy: recorders.map((r) => r.displayName),
+    };
   }
 
   async recordEvent(
