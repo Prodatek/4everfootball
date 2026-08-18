@@ -136,11 +136,19 @@ export class PlayerRegistrationsController {
   ) {
     await this.organisationsService.assertCanManage(dto.organisationId, user);
 
+    let payerEmail = dto.payerEmail;
+    if (!payerEmail) {
+      const currentUser = await this.prisma.user.findUniqueOrThrow({
+        where: { id: user.sub },
+      });
+      payerEmail = currentUser.email;
+    }
+
     return this.registrationsService.checkout(
       dto.registrationIds,
       dto.organisationId,
       dto.provider,
-      dto.payerEmail,
+      payerEmail,
     );
   }
 

@@ -11,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Container } from "@/components/layout/container";
 import { Money } from "@/components/monetisation/money";
-import { fetchCompetitionBySlug, fetchCompetitionEntries } from "@/features/competitions/api";
+import { fetchCompetitionBySlug } from "@/features/competitions/api";
 import {
   fetchRegistrationsForCompetition,
   recordCashOverride,
@@ -36,12 +36,6 @@ export default function RegistrationsConsolePage({
     queryFn: () => fetchCompetitionBySlug(slug),
   });
 
-  const { data: entries } = useQuery({
-    queryKey: ["competition-teams", competition?.id],
-    queryFn: () => fetchCompetitionEntries(competition!.id),
-    enabled: !!competition?.id,
-  });
-
   const {
     data: registrations,
     isLoading: registrationsLoading,
@@ -51,12 +45,6 @@ export default function RegistrationsConsolePage({
     queryFn: () => fetchRegistrationsForCompetition(competition!.id),
     enabled: !!competition?.id,
   });
-
-  const teamNames = useMemo(() => {
-    const map = new Map<string, string>();
-    entries?.forEach((e) => map.set(e.teamId, e.name));
-    return map;
-  }, [entries]);
 
   const byTeam = useMemo(() => {
     const groups = new Map<string, PlayerRegistration[]>();
@@ -131,7 +119,7 @@ export default function RegistrationsConsolePage({
           <Card key={teamId}>
             <CardHeader>
               <CardTitle className="flex items-center justify-between text-base">
-                <span>{teamNames.get(teamId) ?? "Unknown team"}</span>
+                <span>{regs[0]?.team.name ?? "Unknown team"}</span>
                 <Badge variant={unpaid.length === 0 ? "default" : "secondary"}>
                   {paid.length} / {regs.length} paid
                 </Badge>

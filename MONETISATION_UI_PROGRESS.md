@@ -4,6 +4,38 @@ Running log per `MONETISATION_UI_BRIEF.md` §8.5. Newest entries first.
 
 ---
 
+## Phase B — Club registration and the payment gate
+
+**Status: built, typechecked, backend tests passing (91 tests across competitions/teams/payments/player-registrations/organisations). Pending live verification (backend rebuild in flight).** B3 (squad builder) was already built and approved as the pilot; this covers B1, B2, B4, B5, B6.
+
+### B1 · Public registration landing
+- `/register/[competitionSlug]` — the only Server Component page in the app (deliberately: WhatsApp's link-preview crawler doesn't execute JS, so this needed real SSR'd `generateMetadata`, not a client fetch). Shows branding, registration window, per-player cost, what a club needs to hand over, one CTA.
+- Backend: `registrationOpensAt`/`registrationClosesAt` added to `UpdateCompetitionDto` (were real DB columns, never settable). Deliberately did **not** expose `registrationFeeKobo` as settable — it's never read by the actual pricing logic (`PlayerRegistrationsService.register()` always prices off `PLAYER_REGISTRATION.STANDARD`), so making it settable would let an organiser configure a price checkout doesn't honour. The landing page shows the real `STANDARD` price from `@4ef/shared` instead.
+
+### B2 · Club account creation
+- `/register/[competitionSlug]/start` — 3-step (Account → Club → Team), each step auto-skipped if already satisfied (logged in, has an org). Reuses the app's existing register form/hook verbatim.
+- **User's explicit call**: teams are *claimed*, not self-service-created — admins keep pre-creating teams as today; a new club searches unclaimed teams (`organisationId IS NULL`) and attaches one to itself. Backend: `POST /teams/:id/claim` (org-scoped, one-way — a claimed team can't be claimed again by anyone) + `?unclaimed=true` filter on `GET /teams`.
+- **Real limitation, stated in the UI copy, not hidden**: if no matching unclaimed team exists, the club is stuck — "Can't find your team? Ask the competition organiser to add it first." This is the direct cost of the claim-not-create decision.
+
+### B4 · Squad review and payment
+- `/register/[competitionSlug]/squad/[teamSlug]/pay` — checkbox-per-player selection (defaults to all unpaid), explicit consequence copy when a partial subset is selected ("Only the N players you pay for now become eligible..."), same 6-state payment machine as A3's checkout, card + bank transfer. No backend gaps — `checkout()` already supported partial payment exactly as specified.
+
+### B5 · Squad status / shareable link
+- `/register/[competitionSlug]/squad/[teamSlug]/status` (authenticated, "Copy shareable link") and the public `/squad-status/[competitionSlug]/[teamSlug]?token=` (no login). **User's explicit call**: public, token-gated rather than login-gated.
+- Backend: stateless HMAC-signed token (`squad-share-token.ts`, keyed off `JWT_ACCESS_SECRET`) — no new table/column/migration, unguessable without the secret. Trade-off, noted in the code: not individually revocable. The public read is deliberately narrow — player name + status + aggregate owed only, never guardian consent fields or per-player price.
+
+### B6 · Organiser registration console
+- `/admin/organisations/[id]/competitions/[slug]/registrations` — every club grouped with paid/unpaid counts, per-player checkboxes, "Mark selected paid (cash)" with a mandatory-reason dialog.
+- **Bulk reminder actions were not built** — there is zero notification/email/SMS infrastructure anywhere in this codebase. That's a separate feature, not a small addition; building a fake "send reminder" button that does nothing would be worse than omitting it.
+- Backend: `POST /competitions/:competitionId/registrations/cash-override` — a **new, separate** method from the existing `checkout()`/`confirmBankTransfer()` pair, deliberately: those are org-scoped to the *paying club*, but this action is the *competition organiser* acting on a club's behalf — almost certainly a different organisation than the one being credited. Reuses `confirmBankTransfer()`'s existing `confirmedById`/`transferNote` logging internally. Also loosened `POST /payments/:id/confirm-transfer` from platform-admin-only to org-scoped, and made `transferNote` mandatory specifically for `CASH` overrides (bank transfers can lean on a reference/proof instead).
+
+### Known, not fixed this phase
+- Same org-scoped-auth inconsistency noted in Phase A still applies to whatever wasn't touched this pass.
+- B5's share link can't be revoked individually (stateless-by-design trade-off, see above).
+- Registration/eligibility still isn't validated against a competition age group — `Competition` has no such field (same finding as the B3 pilot).
+
+---
+
 ## Phase A — Organiser onboarding and competition licensing
 
 **Status: built and verified live end-to-end** (org create → wizard → tier selection → competition created → licence checkout via bank transfer → payment created and correctly shown as "Awaiting confirmation" with a real reference → dashboard reflecting live registration/licence state). Screenshots confirm all four screens render correctly against the real API, not just typecheck-clean.

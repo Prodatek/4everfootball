@@ -21,6 +21,7 @@ export interface PlayerRegistration {
   guardianEmail: string | null;
   guardianConsentAt: string | null;
   player: { id: string; firstName: string; lastName: string; photoUrl: string | null };
+  team: { id: string; name: string; slug: string };
 }
 
 /**

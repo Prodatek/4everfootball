@@ -176,6 +176,14 @@ export class PlayerRegistrationsService {
         player: {
           select: { id: true, firstName: true, lastName: true, photoUrl: true },
         },
+        // §5 B6 needed team names for the organiser console's grouped
+        // view — found live: registering a squad never requires (or
+        // creates) a CompetitionEntry (that's a separate, admin-only
+        // "add team to competition" action for standings), so a club can
+        // be fully registered here without ever appearing there. Included
+        // directly rather than making the caller cross-reference a second,
+        // unrelated, possibly-empty list.
+        team: { select: { id: true, name: true, slug: true } },
       },
     });
   }
