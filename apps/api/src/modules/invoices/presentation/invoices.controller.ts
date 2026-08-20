@@ -89,4 +89,16 @@ export class InvoicesController {
     );
     return this.invoicesService.recordPayment(id, dto.amountKobo);
   }
+
+  // §5 D1: "downloadable PDFs" — any org member who can already read this
+  // invoice can also download it.
+  @Post(':id/pdf')
+  async pdf(@Param('id') id: string, @CurrentUser() user: JwtAccessPayload) {
+    const invoice = await this.invoicesService.getById(id);
+    await this.organisationsService.assertCanManage(
+      invoice.organisationId,
+      user,
+    );
+    return this.invoicesService.generateAndUploadPdf(id);
+  }
 }

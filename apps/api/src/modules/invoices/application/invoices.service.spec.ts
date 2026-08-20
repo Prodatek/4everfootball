@@ -3,6 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { InvoicesService } from './invoices.service';
 import { PrismaService } from '../../../common/prisma/prisma.service';
+import { S3StorageService } from '../../media/infrastructure/s3-storage.service';
+import { PdfRendererService } from '../../pdf/pdf-renderer.service';
 
 function fakePrisma() {
   return {
@@ -31,6 +33,11 @@ describe('InvoicesService', () => {
         {
           provide: ConfigService,
           useValue: { get: jest.fn().mockReturnValue('4EV') },
+        },
+        { provide: PdfRendererService, useValue: { render: jest.fn() } },
+        {
+          provide: S3StorageService,
+          useValue: { putObject: jest.fn(), publicUrlFor: jest.fn() },
         },
       ],
     }).compile();

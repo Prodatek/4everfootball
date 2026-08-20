@@ -5,8 +5,9 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import type { PaymentProvider, PaymentPurpose } from '@prisma/client';
+import type { PaymentProvider, PaymentPurpose, PaymentStatus } from '@prisma/client';
 import { PrismaService } from '../../../common/prisma/prisma.service';
+import { paginate } from '../../../common/dto/paginated-result';
 import { PaystackClientService } from '../infrastructure/paystack-client.service';
 import {
   MEDIA_PACK_COMPETITION_SUBJECT_TYPE,
@@ -230,5 +231,177 @@ export class PaymentsService {
     });
 
     await this.fulfilPayment(paymentId);
+  }
+
+  // §5 D1: "payment history" for an organiser's billing centre.
+  async listForOrganisation(
+    organisationId: string,
+    page: number,
+    limit: number,
+    status?: PaymentStatus,
+  ) {
+    const where = { organisationId, ...(status ? { status } : {}) };
+    const [items, total] = await Promise.all([
+      this.prisma.payment.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.payment.count({ where }),
+    ]);
+
+    return paginate(items, total, page, limit);
+  }
+
+  // §5 D2: "payments needing reconciliation" — every payment still PENDING,
+  // oldest first. BANK_TRANSFER/CASH never resolve without a human (the
+  // manual mark-paid-by-transfer action); PAYSTACK ones are also stale
+  // candidates the 10-minute job (PaymentReconciliationService) hasn't
+  // resolved yet — surfaced here for visibility either way.
+  async listNeedingReconciliation() {
+    return this.prisma.payment.findMany({
+      where: { status: 'PENDING' },
+      orderBy: { createdAt: 'asc' },
+      include: { organisation: { select: { name: true } } },
+    });
+  }
+
+  /**
+   * §5 D2: "Cash collected, outstanding, by competition and by
+   * organisation." Competition attribution differs by purpose — LICENCE
+   * payments point straight at a competition (subjectId IS the
+   * competitionId); PLAYER_REGISTRATION payments point at a team
+   * (subjectId is a teamId), so the competition comes from the
+   * PlayerRegistration rows that payment funded instead. Everything else
+   * (ADD_ON, ACADEMY_PLAN, ONBOARDING) has no competition to attribute to
+   * and only counts toward the organisation totals.
+   */
+  async getRevenueSummary() {
+    const [paidPayments, pendingByOrg] = await Promise.all([
+      this.prisma.payment.findMany({
+        where: { status: 'PAID' },
+        select: {
+          id: true,
+          amountKobo: true,
+          purpose: true,
+          subjectId: true,
+          organisationId: true,
+          organisation: { select: { name: true } },
+        },
+      }),
+      this.prisma.payment.groupBy({
+        by: ['organisationId'],
+        where: { status: 'PENDING' },
+        _sum: { amountKobo: true },
+      }),
+    ]);
+
+    const registrationPaymentIds = paidPayments
+      .filter((p) => p.purpose === 'PLAYER_REGISTRATION')
+      .map((p) => p.id);
+
+    const registrations = registrationPaymentIds.length
+      ? await this.prisma.playerRegistration.findMany({
+          where: { paymentId: { in: registrationPaymentIds } },
+          select: {
+            paymentId: true,
+            competitionId: true,
+            competition: { select: { name: true } },
+          },
+        })
+      : [];
+    const competitionByPaymentId = new Map(
+      registrations
+        .filter((r) => r.paymentId)
+        .map((r) => [r.paymentId as string, { id: r.competitionId, name: r.competition.name }]),
+    );
+
+    const licenceCompetitionIds = [
+      ...new Set(
+        paidPayments.filter((p) => p.purpose === 'LICENCE').map((p) => p.subjectId),
+      ),
+    ];
+    const licenceCompetitions = licenceCompetitionIds.length
+      ? await this.prisma.competition.findMany({
+          where: { id: { in: licenceCompetitionIds } },
+          select: { id: true, name: true },
+        })
+      : [];
+    const licenceCompetitionNameById = new Map(
+      licenceCompetitions.map((c) => [c.id, c.name]),
+    );
+
+    const byOrganisation = new Map<
+      string,
+      { organisationId: string; name: string; collectedKobo: number }
+    >();
+    const byCompetition = new Map<
+      string,
+      { competitionId: string; name: string; collectedKobo: number }
+    >();
+    let totalCollectedKobo = 0;
+
+    for (const payment of paidPayments) {
+      totalCollectedKobo += payment.amountKobo;
+
+      const org = byOrganisation.get(payment.organisationId) ?? {
+        organisationId: payment.organisationId,
+        name: payment.organisation.name,
+        collectedKobo: 0,
+      };
+      org.collectedKobo += payment.amountKobo;
+      byOrganisation.set(payment.organisationId, org);
+
+      let competition: { id: string; name: string } | null = null;
+      if (payment.purpose === 'LICENCE') {
+        const name = licenceCompetitionNameById.get(payment.subjectId);
+        if (name) competition = { id: payment.subjectId, name };
+      } else if (payment.purpose === 'PLAYER_REGISTRATION') {
+        competition = competitionByPaymentId.get(payment.id) ?? null;
+      }
+
+      if (competition) {
+        const entry = byCompetition.get(competition.id) ?? {
+          competitionId: competition.id,
+          name: competition.name,
+          collectedKobo: 0,
+        };
+        entry.collectedKobo += payment.amountKobo;
+        byCompetition.set(competition.id, entry);
+      }
+    }
+
+    const pendingOrgIds = pendingByOrg.map((row) => row.organisationId);
+    const pendingOrgs = pendingOrgIds.length
+      ? await this.prisma.organisation.findMany({
+          where: { id: { in: pendingOrgIds } },
+          select: { id: true, name: true },
+        })
+      : [];
+    const pendingOrgNameById = new Map(pendingOrgs.map((o) => [o.id, o.name]));
+
+    const outstandingByOrganisation = pendingByOrg
+      .map((row) => ({
+        organisationId: row.organisationId,
+        name: pendingOrgNameById.get(row.organisationId) ?? 'Unknown organisation',
+        outstandingKobo: row._sum.amountKobo ?? 0,
+      }))
+      .sort((a, b) => b.outstandingKobo - a.outstandingKobo);
+
+    return {
+      totalCollectedKobo,
+      totalOutstandingKobo: outstandingByOrganisation.reduce(
+        (sum, row) => sum + row.outstandingKobo,
+        0,
+      ),
+      byOrganisation: [...byOrganisation.values()].sort(
+        (a, b) => b.collectedKobo - a.collectedKobo,
+      ),
+      byCompetition: [...byCompetition.values()].sort(
+        (a, b) => b.collectedKobo - a.collectedKobo,
+      ),
+      outstandingByOrganisation,
+    };
   }
 }

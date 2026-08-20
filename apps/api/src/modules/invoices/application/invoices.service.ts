@@ -4,7 +4,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { formatNaira } from '@4ef/shared';
 import { PrismaService } from '../../../common/prisma/prisma.service';
+import { S3StorageService } from '../../media/infrastructure/s3-storage.service';
+import { PdfRendererService } from '../../pdf/pdf-renderer.service';
 import { formatQuoteNumber } from '../domain/quote-number';
 import type { CreateInvoiceDto } from './dto/create-invoice.dto';
 
@@ -17,6 +20,8 @@ export class InvoicesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly pdfRenderer: PdfRendererService,
+    private readonly s3: S3StorageService,
   ) {}
 
   async create(dto: CreateInvoiceDto) {
@@ -135,6 +140,72 @@ export class InvoicesService {
         paidAt: status === 'PAID' ? new Date() : invoice.paidAt,
       },
     });
+  }
+
+  // §5 D1: "downloadable PDFs." Same render-then-upload-to-S3 shape as
+  // ImpactReportService/TermlyReportService — a POST returns a URL, the
+  // browser just links to it, no StreamableFile plumbing needed.
+  async generateAndUploadPdf(id: string): Promise<{ url: string }> {
+    const invoice = await this.getById(id);
+    const organisation = await this.prisma.organisation.findUniqueOrThrow({
+      where: { id: invoice.organisationId },
+      select: { name: true },
+    });
+
+    const pdf = await this.pdfRenderer.render((doc) => {
+      doc.header(
+        organisation.name,
+        `Invoice ${invoice.quoteNumber} — ${invoice.status}`,
+      );
+
+      doc.sectionTitle('Summary');
+      doc.statGrid([
+        { label: 'Subtotal', value: formatNaira(invoice.subtotalKobo) },
+        { label: 'Discount', value: formatNaira(invoice.discountKobo) },
+        { label: 'Total', value: formatNaira(invoice.totalKobo) },
+        {
+          label: 'Balance due',
+          value: formatNaira(invoice.balanceKobo ?? invoice.totalKobo),
+        },
+        {
+          label: 'Valid until',
+          value: invoice.validUntil.toLocaleDateString('en-NG', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+          }),
+        },
+        {
+          label: 'Issued',
+          value: invoice.issuedAt
+            ? invoice.issuedAt.toLocaleDateString('en-NG', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+              })
+            : 'Not yet issued',
+        },
+      ]);
+
+      doc.sectionTitle('Line items');
+      doc.table(
+        ['Description', 'Basis', 'Qty', 'Unit', 'Amount'],
+        invoice.lines.map((line) => [
+          line.description,
+          line.basis ?? '—',
+          String(line.quantity),
+          formatNaira(line.unitKobo),
+          formatNaira(line.amountKobo),
+        ]),
+      );
+
+      doc.signatureFooter();
+    });
+
+    const key = `invoices/${invoice.id}/${Date.now()}.pdf`;
+    await this.s3.putObject(key, pdf, 'application/pdf');
+
+    return { url: this.s3.publicUrlFor(key) };
   }
 
   private async nextQuoteNumber(): Promise<string> {

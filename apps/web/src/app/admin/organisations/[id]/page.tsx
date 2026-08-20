@@ -101,7 +101,10 @@ export default function OrganisationDetailPage({
             {organisation.name}
             <Badge variant="secondary">{organisation.type}</Badge>
           </CardTitle>
-          <CardAction>
+          <CardAction className="flex gap-2">
+            <Button size="sm" variant="outline" render={<Link href={`/admin/organisations/${id}/billing`} />}>
+              Billing
+            </Button>
             <Button size="sm" render={<Link href={`/admin/organisations/${id}/competitions/new`} />}>
               New competition
             </Button>

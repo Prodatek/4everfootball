@@ -9,6 +9,7 @@ import {
   NotFoundException,
   Param,
   Post,
+  Query,
   Req,
 } from '@nestjs/common';
 import type { RawBodyRequest } from '@nestjs/common';
@@ -18,6 +19,7 @@ import { ConfigService } from '@nestjs/config';
 import { COMPETITION_TIERS, type CompetitionTierKey } from '@4ef/shared';
 import type { JwtAccessPayload } from '@4ef/shared';
 import { Public } from '../../../common/decorators/public.decorator';
+import { Roles } from '../../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { OrganisationsService } from '../../organisations/application/organisations.service';
@@ -26,6 +28,8 @@ import { PaystackWebhookService } from '../application/paystack-webhook.service'
 import { PaystackClientService } from '../infrastructure/paystack-client.service';
 import { InitializeLicencePaymentDto } from '../application/dto/initialize-licence-payment.dto';
 import { ConfirmBankTransferDto } from '../application/dto/confirm-bank-transfer.dto';
+import { QueryPaymentsDto } from '../application/dto/query-payments.dto';
+import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
 
 @ApiTags('payments')
 @Controller('payments')
@@ -123,6 +127,51 @@ export class PaymentsController {
     // surfaced as an HTTP error, so Paystack doesn't retry-storm us for
     // something retrying won't fix (e.g. an unrecognized reference).
     return { received: true };
+  }
+
+  // §5 D1: an organiser's payment history. Declared ahead of the literal
+  // sub-paths below and of GET :id — Nest matches in declaration order, and
+  // an unguarded :id would otherwise swallow "reconciliation" etc. as a
+  // payment id.
+  @ApiBearerAuth()
+  @Get()
+  async list(
+    @Query() query: QueryPaymentsDto,
+    @CurrentUser() user: JwtAccessPayload,
+  ) {
+    await this.organisationsService.assertCanManage(query.organisationId, user);
+    return this.paymentsService.listForOrganisation(
+      query.organisationId,
+      query.page,
+      query.limit,
+      query.status,
+    );
+  }
+
+  // §5 D2, internal-only: every payment still awaiting confirmation across
+  // every organisation.
+  @ApiBearerAuth()
+  @Roles('SUPER_ADMIN')
+  @Get('reconciliation')
+  async listNeedingReconciliation() {
+    return this.paymentsService.listNeedingReconciliation();
+  }
+
+  // §5 D2: "cash collected, outstanding, by competition and by
+  // organisation."
+  @ApiBearerAuth()
+  @Roles('SUPER_ADMIN')
+  @Get('revenue-summary')
+  async revenueSummary() {
+    return this.paymentsService.getRevenueSummary();
+  }
+
+  // §5 D2: "webhook log with signature-validity status."
+  @ApiBearerAuth()
+  @Roles('SUPER_ADMIN')
+  @Get('webhook-events')
+  async webhookEvents(@Query() query: PaginationQueryDto) {
+    return this.webhookService.listRecent(query.page, query.limit);
   }
 
   // §5 A3/D1 of MONETISATION_UI_BRIEF.md needed somewhere to read a

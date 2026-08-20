@@ -18,6 +18,7 @@ const NAV_LINKS: { href: string; label: string; roles: Role[] }[] = [
   { href: "/admin/news", label: "News", roles: ["ADMIN", "SUPER_ADMIN", "EDITOR"] },
   { href: "/admin/media", label: "Media", roles: ["ADMIN", "SUPER_ADMIN", "EDITOR"] },
   { href: "/admin/users", label: "Users", roles: ["ADMIN", "SUPER_ADMIN"] },
+  { href: "/admin/revenue", label: "Revenue", roles: ["SUPER_ADMIN"] },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

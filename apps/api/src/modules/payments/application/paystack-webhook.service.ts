@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../../common/prisma/prisma.service';
+import { paginate } from '../../../common/dto/paginated-result';
 import { verifyPaystackSignature } from '../domain/paystack-signature';
 import { PaymentsService } from './payments.service';
 
@@ -109,5 +110,20 @@ export class PaystackWebhookService {
         data: { processingError: message, processedAt: new Date() },
       });
     }
+  }
+
+  // §5 D2: "Webhook log with signature-validity status" — internal-only
+  // read of the raw log every webhook write already appends to above.
+  async listRecent(page: number, limit: number) {
+    const [items, total] = await Promise.all([
+      this.prisma.webhookEvent.findMany({
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.webhookEvent.count(),
+    ]);
+
+    return paginate(items, total, page, limit);
   }
 }
