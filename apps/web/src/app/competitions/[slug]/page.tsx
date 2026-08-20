@@ -22,6 +22,7 @@ import { fetchFixtures } from "@/features/fixtures/api";
 import { FixtureRow } from "@/features/fixtures/fixture-row";
 import { fetchStandings } from "@/features/standings/api";
 import { fetchCompetitionForm, fetchTopAssists, fetchTopScorers } from "@/features/stats/api";
+import { SponsorBrandingSlot } from "@/features/sponsorship/sponsor-branding-slot";
 
 export default function CompetitionDetailPage({
   params,
@@ -137,6 +138,7 @@ export default function CompetitionDetailPage({
             <span className="text-muted-foreground">Ends:</span>{" "}
             {competition.endDate ? competition.endDate.slice(0, 10) : "TBD"}
           </p>
+          <SponsorBrandingSlot sponsorLogoUrl={competition.sponsorLogoUrl} />
         </CardContent>
       </Card>
 

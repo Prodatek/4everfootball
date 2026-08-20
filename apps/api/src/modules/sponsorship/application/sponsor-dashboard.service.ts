@@ -3,6 +3,10 @@ import { PrismaService } from '../../../common/prisma/prisma.service';
 
 export interface SponsorDashboard {
   competitionName: string;
+  competitionLogoUrl: string | null;
+  sponsorLogoUrl: string | null;
+  primaryColor: string | null;
+  secondaryColor: string | null;
   teamsRegistered: number;
   playersRegistered: number;
   matchesPlayed: number;
@@ -28,7 +32,15 @@ export class SponsorDashboardService {
   async getForSlug(slug: string): Promise<SponsorDashboard> {
     const competition = await this.prisma.competition.findUnique({
       where: { slug },
-      select: { id: true, name: true, pageViewCount: true },
+      select: {
+        id: true,
+        name: true,
+        pageViewCount: true,
+        logoUrl: true,
+        sponsorLogoUrl: true,
+        primaryColor: true,
+        secondaryColor: true,
+      },
     });
 
     if (!competition) {
@@ -86,6 +98,10 @@ export class SponsorDashboardService {
 
     return {
       competitionName: competition.name,
+      competitionLogoUrl: competition.logoUrl,
+      sponsorLogoUrl: competition.sponsorLogoUrl,
+      primaryColor: competition.primaryColor,
+      secondaryColor: competition.secondaryColor,
       teamsRegistered,
       playersRegistered,
       matchesPlayed,

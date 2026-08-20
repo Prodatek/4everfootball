@@ -49,6 +49,10 @@ describe('SponsorDashboardService', () => {
       id: 'comp-1',
       name: 'Lagos Cup',
       pageViewCount: 3104,
+      logoUrl: 'https://example.com/logo.png',
+      sponsorLogoUrl: 'https://example.com/sponsor.png',
+      primaryColor: '#a238ff',
+      secondaryColor: '#0d0812',
     });
     prisma.competitionEntry.count.mockResolvedValue(24);
     prisma.playerRegistration.count.mockResolvedValue(412);
@@ -66,6 +70,10 @@ describe('SponsorDashboardService', () => {
 
     expect(result).toEqual({
       competitionName: 'Lagos Cup',
+      competitionLogoUrl: 'https://example.com/logo.png',
+      sponsorLogoUrl: 'https://example.com/sponsor.png',
+      primaryColor: '#a238ff',
+      secondaryColor: '#0d0812',
       teamsRegistered: 24,
       playersRegistered: 412,
       matchesPlayed: 60,

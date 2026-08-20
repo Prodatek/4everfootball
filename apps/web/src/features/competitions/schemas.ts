@@ -9,6 +9,9 @@ export const competitionFormSchema = z.object({
   startDate: z.string().optional().or(z.literal("")),
   endDate: z.string().optional().or(z.literal("")),
   logoUrl: z.string().url("Enter a valid URL").optional().or(z.literal("")),
+  sponsorLogoUrl: z.string().url("Enter a valid URL").optional().or(z.literal("")),
+  primaryColor: z.string().optional().or(z.literal("")),
+  secondaryColor: z.string().optional().or(z.literal("")),
 });
 
 export type CompetitionFormValues = z.infer<typeof competitionFormSchema>;

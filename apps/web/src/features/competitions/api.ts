@@ -49,6 +49,9 @@ export interface CompetitionInput {
   endDate?: string;
   logoUrl?: string;
   organisationId?: string;
+  sponsorLogoUrl?: string;
+  primaryColor?: string;
+  secondaryColor?: string;
 }
 
 export async function fetchCompetitions(

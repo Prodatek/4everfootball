@@ -42,6 +42,9 @@ function toDefaultValues(competition?: Competition | null): CompetitionFormValue
     startDate: competition?.startDate ? competition.startDate.slice(0, 10) : "",
     endDate: competition?.endDate ? competition.endDate.slice(0, 10) : "",
     logoUrl: competition?.logoUrl ?? "",
+    sponsorLogoUrl: competition?.sponsorLogoUrl ?? "",
+    primaryColor: competition?.primaryColor ?? "",
+    secondaryColor: competition?.secondaryColor ?? "",
   };
 }
 
@@ -78,6 +81,9 @@ export function CompetitionFormDialog({
       startDate: values.startDate || undefined,
       endDate: values.endDate || undefined,
       logoUrl: values.logoUrl || undefined,
+      sponsorLogoUrl: values.sponsorLogoUrl || undefined,
+      primaryColor: values.primaryColor || undefined,
+      secondaryColor: values.secondaryColor || undefined,
     });
   }
 
@@ -149,6 +155,25 @@ export function CompetitionFormDialog({
             {errors.logoUrl && (
               <p className="text-sm text-destructive">{errors.logoUrl.message}</p>
             )}
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="sponsorLogoUrl">Sponsor logo URL</Label>
+            <Input id="sponsorLogoUrl" placeholder="Shown on the public competition page when set" {...register("sponsorLogoUrl")} />
+            {errors.sponsorLogoUrl && (
+              <p className="text-sm text-destructive">{errors.sponsorLogoUrl.message}</p>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="primaryColor">Sponsor primary colour</Label>
+              <Input id="primaryColor" type="color" className="h-10 w-full p-1" {...register("primaryColor")} />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="secondaryColor">Sponsor secondary colour</Label>
+              <Input id="secondaryColor" type="color" className="h-10 w-full p-1" {...register("secondaryColor")} />
+            </div>
           </div>
 
           <DialogFooter>
