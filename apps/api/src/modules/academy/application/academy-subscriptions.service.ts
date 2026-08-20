@@ -79,4 +79,15 @@ export class AcademySubscriptionsService {
       include: { invoice: true },
     });
   }
+
+  // §5 F5: "invoices" (plural) — currentForOrganisation() above only ever
+  // returns the single active row. One row per year, append-only (see the
+  // model's own comment), so billing history is just every row, newest first.
+  async listForOrganisation(organisationId: string) {
+    return this.prisma.academySubscription.findMany({
+      where: { organisationId },
+      orderBy: { startDate: 'desc' },
+      include: { invoice: true },
+    });
+  }
 }

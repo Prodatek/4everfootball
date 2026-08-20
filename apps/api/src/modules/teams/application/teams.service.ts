@@ -38,6 +38,7 @@ export class TeamsService {
       search: query.search,
       country: query.country,
       unclaimed: query.unclaimed,
+      organisationId: query.organisationId,
       sortBy: query.sortBy,
       sortOrder: query.sortOrder,
       includeInactive,

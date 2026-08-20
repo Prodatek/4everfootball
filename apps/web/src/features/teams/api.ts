@@ -11,6 +11,7 @@ export interface TeamsQuery {
   search?: string;
   country?: string;
   unclaimed?: boolean;
+  organisationId?: string;
   sortBy?: "name" | "foundedYear" | "createdAt";
   sortOrder?: "asc" | "desc";
 }

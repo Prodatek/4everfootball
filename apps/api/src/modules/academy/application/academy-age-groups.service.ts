@@ -8,6 +8,16 @@ import { PlayersService } from '../../players/application/players.service';
 import { GraphicsService } from '../../graphics/application/graphics.service';
 import { formatAgeLabel } from '../../graphics/domain/age';
 
+function startOfWeekUtc(): Date {
+  const now = new Date();
+  const day = now.getUTCDay();
+  const diffFromMonday = day === 0 ? 6 : day - 1;
+  const start = new Date(now);
+  start.setUTCDate(now.getUTCDate() - diffFromMonday);
+  start.setUTCHours(0, 0, 0, 0);
+  return start;
+}
+
 @Injectable()
 export class AcademyAgeGroupsService {
   constructor(
@@ -102,6 +112,37 @@ export class AcademyAgeGroupsService {
     }
 
     return { teamId: team.id };
+  }
+
+  /**
+   * §5 F1: "Roster size, age groups, attendance this week, plan status."
+   * One consolidated read so the dashboard is a single call, same shape as
+   * SponsorDashboardService.getForSlug() (Phase 4).
+   */
+  async getDashboard(organisationId: string) {
+    const [ageGroupCount, rosterSize, weekAttendance] = await Promise.all([
+      this.prisma.academyAgeGroup.count({ where: { organisationId } }),
+      this.prisma.player.count({
+        where: {
+          team: { organisationId, ageGroupId: { not: null } },
+          isActive: true,
+        },
+      }),
+      this.prisma.academyAttendance.findMany({
+        where: { organisationId, date: { gte: startOfWeekUtc() } },
+        select: { status: true },
+      }),
+    ]);
+
+    const present = weekAttendance.filter(
+      (a) => a.status === 'PRESENT' || a.status === 'LATE',
+    ).length;
+
+    return {
+      ageGroupCount,
+      rosterSize,
+      attendanceThisWeek: { present, total: weekAttendance.length },
+    };
   }
 
   private async getOwnedAgeGroup(organisationId: string, ageGroupId: string) {

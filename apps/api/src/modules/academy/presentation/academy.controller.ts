@@ -25,6 +25,18 @@ export class AcademyController {
     return this.ageGroupsService.listForOrganisation(organisationId);
   }
 
+  // §5 F1. Declared ahead of nothing that would conflict — this
+  // controller's other routes are all under :ageGroupId, so a literal
+  // "dashboard" segment here is unambiguous.
+  @Get('dashboard')
+  async dashboard(
+    @Param('organisationId') organisationId: string,
+    @CurrentUser() user: JwtAccessPayload,
+  ) {
+    await this.organisationsService.assertCanCoach(organisationId, user);
+    return this.ageGroupsService.getDashboard(organisationId);
+  }
+
   @Post()
   async create(
     @Param('organisationId') organisationId: string,

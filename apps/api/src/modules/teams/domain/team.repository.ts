@@ -14,6 +14,10 @@ export interface TeamListFilters {
   // an existing, not-yet-claimed team (organisationId IS NULL) to attach
   // to their organisation via TeamsService.claim().
   unclaimed?: boolean;
+  // §5 F2: a coach picking which existing club/squad to attach to an
+  // academy age group needs "just this org's teams" — no filter for that
+  // existed before (only the inverse, unclaimed).
+  organisationId?: string;
   sortBy: TeamSortField;
   sortOrder: SortOrder;
   includeInactive?: boolean;

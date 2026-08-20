@@ -24,6 +24,15 @@ export class AcademySubscriptionsController {
     return this.subscriptionsService.currentForOrganisation(organisationId);
   }
 
+  @Get('history')
+  async history(
+    @Param('organisationId') organisationId: string,
+    @CurrentUser() user: JwtAccessPayload,
+  ) {
+    await this.organisationsService.assertCanManage(organisationId, user);
+    return this.subscriptionsService.listForOrganisation(organisationId);
+  }
+
   @Post()
   async subscribe(
     @Param('organisationId') organisationId: string,

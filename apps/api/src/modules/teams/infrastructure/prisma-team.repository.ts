@@ -22,6 +22,7 @@ export class PrismaTeamRepository implements TeamRepository {
         : {}),
       ...(filters.country ? { country: filters.country } : {}),
       ...(filters.unclaimed ? { organisationId: null } : {}),
+      ...(filters.organisationId ? { organisationId: filters.organisationId } : {}),
     };
 
     const [items, total] = await Promise.all([

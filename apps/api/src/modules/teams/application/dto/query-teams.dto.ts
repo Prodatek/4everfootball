@@ -1,5 +1,12 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsIn,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { PaginationQueryDto } from '../../../../common/dto/pagination-query.dto';
 import type { SortOrder, TeamSortField } from '../../domain/team.repository';
@@ -22,6 +29,11 @@ export class QueryTeamsDto extends PaginationQueryDto {
   @Type(() => Boolean)
   @IsBoolean()
   unclaimed?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  organisationId?: string;
 
   @ApiPropertyOptional({ enum: ['name', 'foundedYear', 'createdAt'] })
   @IsOptional()

@@ -102,6 +102,11 @@ export default function OrganisationDetailPage({
             <Badge variant="secondary">{organisation.type}</Badge>
           </CardTitle>
           <CardAction className="flex gap-2">
+            {organisation.type === "ACADEMY" && (
+              <Button size="sm" variant="outline" render={<Link href={`/admin/organisations/${id}/academy`} />}>
+                Academy
+              </Button>
+            )}
             <Button size="sm" variant="outline" render={<Link href={`/admin/organisations/${id}/billing`} />}>
               Billing
             </Button>
