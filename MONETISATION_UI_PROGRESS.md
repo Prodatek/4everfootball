@@ -4,6 +4,33 @@ Running log per `MONETISATION_UI_BRIEF.md` §8.5. Newest entries first.
 
 ---
 
+## Phase C — Scouting console and match-record trust
+
+**Status: built and verified live end-to-end.** C2 (`/scout/fixtures/[id]`) already had a real, previously-shipped implementation with a solid offline-queue foundation — the user's explicit call was to rework it in place rather than replace it, so the offline queue, hash-chain event model, and idempotent `clientEventId` retry logic were kept as-is and only the recording UI changed. Verified live against the real API and dev frontend: C1's fixture list renders and correctly falls back to a cached list with an offline banner when the network drops; C2's event-capture panel is genuinely non-modal (rest of the page stays visible and tappable while it's open), period-control taps are instant with no panel at all, the persistent sync-status indicator reflects online/syncing/stuck states correctly, and the full correction flow (tap "Correct" on a timeline row → reason required → files a `CORRECTION` event, never edits/deletes the original) works end-to-end; C3's verified-record badge appears on a public fixture with recorded events and its dialog shows the correct event count, recorder identity, and verified date, matching the API's `GET /fixtures/:id/verify` response directly.
+
+**One real bug found and fixed during this verification pass:** the offline fallback banner on `/scout` (C1) said "Offline — connect to load your fixtures" even while the fixture list was still visibly rendered right below it — the copy's condition only checked the localStorage-cache path (`fixtures === null && cached`), missing the far more common case where react-query still has the last-fetched data in memory (network fetches just stop firing while offline; the data doesn't disappear). Fixed by keying the banner text off what's actually being displayed (`shown`, not `fixtures`) so the two never contradict each other.
+
+### C1 · Scout fixture list
+- `/scout` — role-gated (SCOUT/ADMIN/SUPER_ADMIN), lists LIVE + SCHEDULED fixtures. **User's explicit call**: no fixture-assignment concept exists in the backend (any privileged user can record on any fixture today), so this lists everything a scout can actually act on rather than a subset that doesn't correspond to any real permission boundary.
+- New: `fixture-list-cache.ts` (localStorage-backed last-known-good list) and `use-online-status.ts` (`navigator.onLine` + online/offline listeners) so the list still renders — with an honest "may be out of date" banner — when a scout opens the app with no signal at the pitch.
+
+### C2 · Match event recorder rework
+- `/scout/fixtures/[id]` reworked in place. Primary actions (Goal/Card/Substitution, split home/away) stay immediately reachable as large tap targets; period controls (Kickoff/Half time/Full time) fire as one instant tap with no intermediate UI since they need no team/player; everything else collapses under "More events."
+- **Brief §5/§4.4 "no blocking modal in the recorder" enforced by construction**: the pre-existing `RecordEventDialog` used the shared `Dialog` primitive (backdrop + focus trap) — replaced with a new, genuinely non-modal `EventCapturePanel` (`fixed inset-x-0 bottom-0`, no backdrop, Escape-key dismiss, composed fresh rather than from `Dialog`/`Sheet` since both share the same modal mechanism under Base UI). A recorder can now tap a competing urgent action without first dismissing whatever's open. `record-event-dialog.tsx` deleted (confirmed unused after the rework).
+- New `SyncStatusIndicator` — always visible (never hidden at zero, per brief), shows online/synced, syncing-N, and stuck states with a manual "Sync now" retry.
+- New `CorrectionPanel` — the only way to amend a past event; shows the original read-only, requires a reason (≥3 chars), fires a `CORRECTION` event carrying `correctsEventId` + `correctionReason`. The event log itself stays strictly append-only — nothing is ever edited or deleted.
+- Backend: no new endpoints — `recordEvent()` already validated `CORRECTION`'s required fields. `RecordMatchEventInput` (frontend) and the offline queue's payload builder gained pass-through for `correctsEventId`/`correctionReason`.
+
+### C3 · Verified-record badge
+- Purely additive to the existing public `/fixtures/[id]` page (one of the brief's two permitted existing-page edits): a "Verified record" badge appears only when the fixture's event chain is present and valid (renders nothing otherwise — a broken chain is an internal signal, never a scary badge shown to a public visitor). Clicking it opens a dialog with the exact required copy, event count, recorder identity, and verified date.
+- Backend: `MatchEventsService.verifyChain()` extended to look up and return distinct recorder display names (`recordedBy: string[]`) alongside the existing hash-chain verification result. `VerifyMatchEventsResult` (in `@4ef/shared`) gained the field; 2 existing Jest tests updated for the new `prisma.user.findMany` call — all 55 tests in the matches module still pass.
+
+### Known, not fixed this phase
+- Same org-scoped-auth inconsistency and missing age-group validation noted in earlier phases still apply to whatever wasn't touched this pass.
+- Fixture assignment (a scout seeing only *their* fixtures, not every fixture) has no backing concept in the backend — C1 lists everything a privileged user can act on instead, per the user's call above.
+
+---
+
 ## Phase B — Club registration and the payment gate
 
 **Status: built and verified live end-to-end.** Full flow run against the real API: claimed an unclaimed team through B2's auto-skipping wizard → added a player through B3 (already-approved pilot) → paid via B4's bank-transfer path → watched B5's status page (both the authenticated view and the actual public share link, opened in a separate unauthenticated browser context) reflect it correctly → used B6's organiser console to cash-override a second registration, checkbox → mandatory-reason dialog → confirm → team badge flips to "fully paid" with a toast. Screenshots confirm every screen renders correctly, not just typecheck-clean. B3 (squad builder) was already built and approved as the pilot; this covers B1, B2, B4, B5, B6.

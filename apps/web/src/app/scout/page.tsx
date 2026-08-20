@@ -82,7 +82,7 @@ export default function ScoutFixtureListPage() {
       {!isOnline && (
         <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/50 p-3 text-sm text-muted-foreground">
           <WifiOff className="size-4 shrink-0" />
-          {fixtures === null && cached
+          {shown && shown.length > 0
             ? "Offline — showing your last downloaded list. Some details may be out of date."
             : "Offline — connect to load your fixtures."}
         </div>
