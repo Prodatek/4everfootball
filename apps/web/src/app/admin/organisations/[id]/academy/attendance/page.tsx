@@ -2,7 +2,7 @@
 
 import { use, useMemo, useState } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { AttendanceStatus } from "@/features/academy/api";
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,7 @@ export default function AcademyAttendancePage({
   params: Promise<{ id: string }>;
 }) {
   const { id: organisationId } = use(params);
+  const queryClient = useQueryClient();
   const [ageGroupId, setAgeGroupId] = useState<string | null>(null);
   const today = todayIso();
 
@@ -63,7 +64,15 @@ export default function AcademyAttendancePage({
 
   const { pendingRecords, enqueue, pendingCount, syncNow } = useOfflineAttendanceQueue(
     organisationId,
-    () => toast.success("Attendance synced"),
+    () => {
+      toast.success("Attendance synced");
+      // Without this, a just-synced tap disappears from the UI for up to
+      // 15s (the poll interval) — it's already gone from pendingRecords
+      // (sync succeeded) but todayAttendance hasn't refetched yet.
+      void queryClient.invalidateQueries({
+        queryKey: ["academy-attendance-today", activeAgeGroup?.id, today],
+      });
+    },
   );
 
   const stuckCount = pendingRecords.filter((r) => r.attempts >= STUCK_AFTER_ATTEMPTS).length;

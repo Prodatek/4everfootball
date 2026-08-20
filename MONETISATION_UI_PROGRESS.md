@@ -4,6 +4,41 @@ Running log per `MONETISATION_UI_BRIEF.md` §8.5. Newest entries first.
 
 ---
 
+## Phase F — Academy workspace
+
+**Status: built and verified live end-to-end.** Research found the backend substantially built already — age groups, four-status attendance (with the offline `clientEventId` idempotency contract already in place), annual-plan subscriptions, and termly-report PDF generation all existed with zero frontend. This phase built five new screens plus small additive backend gaps: a consolidated dashboard-stats endpoint, a subscription-history list (only the single current row existed before), and an `organisationId` filter on the teams endpoint (needed to let a coach pick which of their org's existing squads to attach to an age group — same precedent as Phase A's `organisationId` filter on competitions). Verified live end-to-end against real data: created an age group, assigned a real squad (Lagos Comets FC) to it, enrolled players, recorded attendance both from the UI and confirmed the offline queue's retry behavior, generated a real termly-report PDF with WhatsApp share link, and activated a real Elite academy plan producing a real draft invoice with the correct 20%-prepay-discounted total (₦300,000 → ₦240,000).
+
+**Two real bugs found and fixed during this verification pass, both in the new offline-attendance queue:**
+1. `useOfflineAttendanceQueue`'s `drain()` posted the raw queued item straight to the API, including its local-only bookkeeping fields (`queuedAt`, `attempts`, `lastError`). The API's `forbidNonWhitelisted` validator rejects unknown properties, so every single attendance tap failed with a 400 — this is the *exact* historical bug `offline-queue.ts` (Phase C, match capture) already has a code comment warning about, and I reproduced it by copying that file's shape without copying its `toPayload()` stripping step. Fixed by adding the equivalent `toPayload()` to the new queue.
+2. Once fixed, a second issue surfaced: after a tap successfully synced, its highlighted status could disappear from the UI for up to 15 seconds — the item leaves the pending queue (sync succeeded) but the `today`'s-attendance query hadn't refetched yet, and nothing was invalidating it. Fixed by invalidating that query in the sync-success callback.
+
+### F1 · Academy dashboard
+- `/admin/organisations/[id]/academy` — roster size, age group count, attendance this week (present/total), plan status card with a "Choose a plan"/"Manage plan" link, and two entry cards into Roster and Attendance.
+- Backend: `AcademyAgeGroupsService.getDashboard()` — one consolidated read (roster size via active players on any age-group-linked team, attendance-this-week via a Monday-00:00-UTC cutoff), same one-call shape as `SponsorDashboardService.getForSlug()` from Phase E.
+
+### F2 · Roster and age groups
+- `/admin/organisations/[id]/academy/roster` — every age group as a card, its assigned squad's roster with photos/shirt numbers, a "New age group" dialog, an "Assign squad" dialog (lists the org's own teams via the new `organisationId` filter), checkbox multi-select with a "Move to age group" bulk action, and a per-player "Report" button opening F4's dialog.
+- **Scope call, not asked as a question**: "bulk actions" has no batch endpoint to reuse (`enrollPlayer` is one-at-a-time) — built as a client-side loop over the existing endpoint (move N selected players to a different age group), the only bulk-capable action this domain actually has today.
+
+### F3 · Attendance
+- `/admin/organisations/[id]/academy/attendance` — age-group tabs, one card per player with four large tap targets (Present/Late/Excused/Absent), the persistent sync indicator reused verbatim from Phase C's match capture (`SyncStatusIndicator` — no fixture-specific copy inside it, genuinely generic). Today's already-recorded statuses (server + still-pending-locally) merge into one highlighted state per player.
+- New `offline-attendance-queue.ts` — direct port of Phase C's `offline-queue.ts` shape (localStorage-backed, 4s drain, `clientEventId` idempotency, `STUCK_AFTER_ATTEMPTS`), backed by a `clientEventId` unique constraint the backend already had waiting for exactly this.
+
+### F4 · Development reports
+- Built as a dialog opened from a player's roster row, not a separate route — the backend's one endpoint already does dataset-generation, PDF upload, and WhatsApp-link construction in a single call, so a whole page for "pick a date range, generate, download or share" would be more surface than the feature needs. From/to date range → preview (attendance %, goals, assists) → Download PDF / Share to parent via WhatsApp, both confirmed working against real generated output.
+
+### F5 · Academy plan and billing
+- `/admin/organisations/[id]/academy/billing` — current plan (band + renewal date + invoice status), a band picker (Starter/Growth/Elite) with a prepay checkbox showing the live 20%-discounted total when no plan is active, and an invoice history list.
+- Backend: `AcademySubscriptionsService.listForOrganisation()` — the existing `currentForOrganisation()` only ever returned the single active row; billing history needed every row (the model is explicitly "one row per year, append-only" per its own schema comment).
+- **Frontend-only renewal-safety choice, not a backend change**: `subscribe()` has no guard against double-subscribing while a plan is already active (confirmed in research — calling it twice just creates two overlapping rows). Rather than invent new backend business logic not asked for, the picker/activate UI only renders when there is *no* current active subscription — the same "hide the action instead of guarding the endpoint" pattern already used for A4's "Pay licence" button.
+
+### Known, not fixed this phase
+- Same admin-sidebar mobile-nav gap and org-scoped-auth inconsistency noted in earlier phases still apply to whatever wasn't touched this pass (`PlayersController.create` is still platform-`ADMIN`-only, not org-scoped — an org's own `COACH` member cannot create a brand-new player record, only enroll/move existing ones).
+- Termly-report generation has no gate tying it to an active academy plan or the (defined-but-unused) `ADD_ONS.DEV_REPORT_TERM` price — confirmed via research this was already true before this phase; not something this phase's screens were asked to add.
+- `AcademyAgeGroup` → `Team` is modeled as one-to-many in the schema, but `enrollPlayer()` always picks the first team found for an age group — a latent gap if an org ever needs multiple squads per age group, not something F2's UI works around.
+
+---
+
 ## Phase E — Sponsor
 
 **Status: built and verified live end-to-end.** Research before building found E1 and most of E2's backend already fully built and wired — `GET /competitions/:slug/sponsor-dashboard` (`@Public()`, no auth at all — the brief's own "link-access" requirement was already solved architecturally by simply not gating the route) and the full JSON/CSV/PDF impact-report trio (gated by organiser login + a `SponsorEntitlement` grant), both with zero frontend callers before this phase. This phase was almost entirely frontend, plus one small additive backend change (branding fields on the dashboard payload) and a set of admin form fields to make the `sponsorLogoUrl`/`primaryColor`/`secondaryColor` fields — already accepted by the API, previously reachable only via a raw request — actually usable by a real admin. Verified live: E1 renders correctly at both mobile (390px, screenshotted per the brief's "sponsor will screenshot this on a phone" requirement) and desktop widths, with the competition's `primaryColor` driving a top accent bar and its sponsor logo/branding rendering only when set; E2's report renders real data with `Verified`/`Estimated` tags on the correct figures, downloads a real PDF (confirmed via direct request — a valid S3 URL) and a real CSV (confirmed via direct request — correct report content), and shows an honest, non-scary empty state for a competition with no `SponsorEntitlement` granted; E3's branding slot appears additively on the public competition page with a configured sponsor and (confirmed via the same page rendering cleanly for competitions with no sponsor set) causes zero visual change when unconfigured.

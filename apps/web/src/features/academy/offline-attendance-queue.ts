@@ -32,6 +32,21 @@ function saveQueue(organisationId: string, queue: QueuedAttendance[]): void {
   window.localStorage.setItem(storageKey(organisationId), JSON.stringify(queue));
 }
 
+// The API rejects unknown properties outright (forbidNonWhitelisted), so
+// the local-only bookkeeping fields (queuedAt/attempts/lastError) can't
+// ride along in the request body — same fix as offline-queue.ts's
+// toPayload(), which exists precisely because omitting this step used to
+// fail every single submission with "property queuedAt should not exist".
+function toPayload(item: QueuedAttendance): RecordAttendanceInput {
+  return {
+    clientEventId: item.clientEventId,
+    ageGroupId: item.ageGroupId,
+    playerId: item.playerId,
+    date: item.date,
+    status: item.status,
+  };
+}
+
 function describeError(error: unknown): string {
   if (isAxiosError(error)) {
     const data = error.response?.data as { message?: string | string[] } | undefined;
@@ -79,7 +94,7 @@ export function useOfflineAttendanceQueue(
     try {
       for (const item of loadQueue(organisationId)) {
         try {
-          const record = await recordAttendance(organisationId, item);
+          const record = await recordAttendance(organisationId, toPayload(item));
           setQueue((prev) => prev.filter((q) => q.clientEventId !== item.clientEventId));
           onSyncedRef.current?.(record);
         } catch (error) {
