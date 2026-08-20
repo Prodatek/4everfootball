@@ -5,7 +5,10 @@ import {
   NotFoundException,
   Param,
   Post,
+  Query,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { JwtAccessPayload } from '@4ef/shared';
 import { Public } from '../../../common/decorators/public.decorator';
@@ -13,6 +16,7 @@ import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { OrganisationsService } from '../../organisations/application/organisations.service';
 import { GraphicsService } from '../application/graphics.service';
+import { QueryGraphicsDto } from '../application/dto/query-graphics.dto';
 import { formatAgeLabel } from '../domain/age';
 
 @ApiTags('graphics')
@@ -40,8 +44,46 @@ export class GraphicsController {
   @Get('competitions/:competitionId/graphics')
   async listForCompetition(
     @Param('competitionId') competitionId: string,
+    @Query() query: QueryGraphicsDto,
     @CurrentUser() user: JwtAccessPayload,
   ) {
+    await this.assertCompetitionAccess(competitionId, user);
+    return this.graphicsService.listForCompetition(competitionId, query);
+  }
+
+  // §5 G1: "Bulk download" — every graphic matching the same club/match/type
+  // filters as the list above, streamed as a single zip so a browser never
+  // has to fetch N files itself.
+  @ApiBearerAuth()
+  @Get('competitions/:competitionId/graphics/zip')
+  async downloadZip(
+    @Param('competitionId') competitionId: string,
+    @Query() query: QueryGraphicsDto,
+    @CurrentUser() user: JwtAccessPayload,
+    @Res() res: Response,
+  ) {
+    await this.assertCompetitionAccess(competitionId, user);
+    const { archive, count } = await this.graphicsService.buildZipArchive(
+      competitionId,
+      query,
+    );
+
+    if (count === 0) {
+      throw new BadRequestException('No ready graphics match this filter');
+    }
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="graphics.zip"',
+    );
+    archive.pipe(res);
+  }
+
+  private async assertCompetitionAccess(
+    competitionId: string,
+    user: JwtAccessPayload,
+  ): Promise<void> {
     const competition = await this.prisma.competition.findUnique({
       where: { id: competitionId },
       select: { organisationId: true },
@@ -55,7 +97,6 @@ export class GraphicsController {
       competition.organisationId,
       user,
     );
-    return this.graphicsService.listForCompetition(competitionId);
   }
 
   // Public: a fan/parent following a "one-tap share" link needs to poll

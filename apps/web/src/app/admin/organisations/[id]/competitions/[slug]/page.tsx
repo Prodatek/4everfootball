@@ -183,6 +183,12 @@ export default function CompetitionDashboardPage({
         >
           Impact report
         </Button>
+        <Button
+          variant="outline"
+          render={<Link href={`/admin/organisations/${organisationId}/competitions/${slug}/media`} />}
+        >
+          Media library
+        </Button>
       </div>
 
       <div className="flex flex-col gap-3">

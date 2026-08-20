@@ -1,8 +1,23 @@
+import { createRequire } from 'node:module';
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import type ArchiverType from 'archiver';
 import type { GraphicFormat, GraphicTemplate, Prisma } from '@prisma/client';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { MediaPacksService } from '../../media-packs/application/media-packs.service';
+import { S3StorageService } from '../../media/infrastructure/s3-storage.service';
 import { DEFAULT_FORMAT, isGatedTemplate } from '../domain/templates';
+
+// Same classic-CJS-export interop issue as pdfkit (see PdfRendererService's
+// comment): `import archiver from 'archiver'` type-checks fine but resolves
+// to undefined at runtime because this tsconfig has no esModuleInterop.
+const loadCjsModule = createRequire(__filename);
+const archiver: typeof ArchiverType = loadCjsModule('archiver');
+
+export interface GraphicListFilters {
+  template?: GraphicTemplate;
+  teamId?: string;
+  fixtureId?: string;
+}
 
 // Guards against re-enqueueing the same graphic if a cron trigger fires
 // twice in a short window (an app restart mid-tick, a misconfigured
@@ -27,6 +42,7 @@ export class GraphicsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mediaPacksService: MediaPacksService,
+    private readonly s3: S3StorageService,
   ) {}
 
   /**
@@ -132,11 +148,101 @@ export class GraphicsService {
     });
   }
 
-  async listForCompetition(competitionId: string) {
+  /**
+   * §5 G1: "filterable by club, match and type." Graphic has no direct
+   * teamId/fixtureId column — every template's subject means something
+   * different (a fixture, a player, a match event, or the whole
+   * competition), so a club/match filter is really "which subjectIds, of
+   * whichever subjectTypes actually carry that club/match, match" —
+   * resolved as small targeted lookups rather than one giant join.
+   * Competition-wide templates (LEAGUE_TABLE, TOP_SCORERS, ...) have no
+   * single club or match and are correctly excluded once either filter is
+   * applied, not force-fitted into one.
+   */
+  async listForCompetition(competitionId: string, filters: GraphicListFilters = {}) {
+    const and: Prisma.GraphicWhereInput[] = [{ competitionId }];
+
+    if (filters.template) {
+      and.push({ template: filters.template });
+    }
+
+    if (filters.fixtureId) {
+      const events = await this.prisma.matchEvent.findMany({
+        where: { fixtureId: filters.fixtureId },
+        select: { id: true },
+      });
+
+      and.push({
+        OR: [
+          { subjectType: 'FIXTURE', subjectId: filters.fixtureId },
+          {
+            subjectType: 'MATCH_EVENT',
+            subjectId: { in: events.map((e) => e.id) },
+          },
+        ],
+      });
+    }
+
+    if (filters.teamId) {
+      const [fixtures, players, events] = await Promise.all([
+        this.prisma.fixture.findMany({
+          where: {
+            competitionId,
+            OR: [{ homeTeamId: filters.teamId }, { awayTeamId: filters.teamId }],
+          },
+          select: { id: true },
+        }),
+        this.prisma.player.findMany({
+          where: { teamId: filters.teamId },
+          select: { id: true },
+        }),
+        this.prisma.matchEvent.findMany({
+          where: { teamId: filters.teamId, fixture: { competitionId } },
+          select: { id: true },
+        }),
+      ]);
+
+      and.push({
+        OR: [
+          { subjectType: 'FIXTURE', subjectId: { in: fixtures.map((f) => f.id) } },
+          { subjectType: 'PLAYER', subjectId: { in: players.map((p) => p.id) } },
+          {
+            subjectType: 'MATCH_EVENT',
+            subjectId: { in: events.map((e) => e.id) },
+          },
+        ],
+      });
+    }
+
     return this.prisma.graphic.findMany({
-      where: { competitionId },
+      where: { AND: and },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  /**
+   * §5 G1: "Bulk download." Streams every matching READY graphic straight
+   * from S3 into a zip archive — the caller (controller) pipes the
+   * returned archive into the HTTP response, so nothing is buffered fully
+   * in memory.
+   */
+  async buildZipArchive(competitionId: string, filters: GraphicListFilters = {}) {
+    const graphics = await this.listForCompetition(competitionId, filters);
+    const ready = graphics.filter(
+      (g): g is typeof g & { mediaKey: string } => g.status === 'READY' && !!g.mediaKey,
+    );
+
+    const archive = archiver('zip', { zlib: { level: 9 } });
+
+    for (const graphic of ready) {
+      const stream = await this.s3.getObjectStream(graphic.mediaKey);
+      const filename = `${graphic.template.toLowerCase().replace(/_/g, '-')}-${graphic.id.slice(0, 8)}.png`;
+      archive.append(stream, { name: filename });
+    }
+
+    void archive.finalize();
+
+    return { archive, count: ready.length };
   }
 
   /**

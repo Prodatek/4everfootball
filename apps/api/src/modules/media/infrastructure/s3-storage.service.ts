@@ -1,7 +1,9 @@
+import type { Readable } from 'node:stream';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   DeleteObjectCommand,
+  GetObjectCommand,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
@@ -69,6 +71,16 @@ export class S3StorageService {
 
   publicUrlFor(key: string): string {
     return `${this.publicUrl}/${key}`;
+  }
+
+  // §5 G1: bulk download needs the actual bytes, not another presigned
+  // URL — the API streams each file straight into a zip archive server-side
+  // rather than asking the browser to fetch N objects itself.
+  async getObjectStream(key: string): Promise<Readable> {
+    const result = await this.client.send(
+      new GetObjectCommand({ Bucket: this.bucket, Key: key }),
+    );
+    return result.Body as Readable;
   }
 
   async deleteObject(key: string): Promise<void> {
