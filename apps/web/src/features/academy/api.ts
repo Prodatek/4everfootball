@@ -46,6 +46,24 @@ export interface AcademySubscription {
   createdAt: string;
 }
 
+// A plan choice awaiting a platform admin's payment confirmation — the
+// AcademySubscription itself doesn't exist yet (see the schema comment on
+// AcademySubscriptionRequest for why this is a separate step).
+export interface AcademySubscriptionRequest {
+  id: string;
+  organisationId: string;
+  planKey: AcademyPlanKey;
+  prepay: boolean;
+  invoiceId: string;
+  invoice: Invoice;
+  activatedAt: string | null;
+  createdAt: string;
+}
+
+export interface AcademySubscriptionRequestWithOrg extends AcademySubscriptionRequest {
+  organisation: { name: string };
+}
+
 export async function fetchAgeGroups(organisationId: string): Promise<AgeGroup[]> {
   const { data } = await apiClient.get<AgeGroup[]>(
     `/organisations/${organisationId}/academy/age-groups`,
@@ -144,14 +162,45 @@ export async function fetchSubscriptionHistory(
   return data;
 }
 
+// §5 F5: "we chose a plan, still waiting for it to be confirmed" — distinct
+// from fetchCurrentSubscription(), which only ever reflects an already
+// activated plan.
+export async function fetchPendingSubscriptionRequest(
+  organisationId: string,
+): Promise<AcademySubscriptionRequest | null> {
+  const { data } = await apiClient.get<AcademySubscriptionRequest | null>(
+    `/organisations/${organisationId}/academy/subscription/pending`,
+  );
+  return data;
+}
+
 export async function subscribeAcademyPlan(
   organisationId: string,
   planKey: AcademyPlanKey,
   prepay: boolean,
-): Promise<AcademySubscription> {
-  const { data } = await apiClient.post<AcademySubscription>(
+): Promise<AcademySubscriptionRequest> {
+  const { data } = await apiClient.post<AcademySubscriptionRequest>(
     `/organisations/${organisationId}/academy/subscription`,
     { planKey, prepay },
+  );
+  return data;
+}
+
+// §5 D2, internal-only.
+export async function fetchPendingSubscriptionRequests(): Promise<
+  AcademySubscriptionRequestWithOrg[]
+> {
+  const { data } = await apiClient.get<AcademySubscriptionRequestWithOrg[]>(
+    "/academy/subscription-requests",
+  );
+  return data;
+}
+
+export async function confirmSubscriptionRequest(
+  requestId: string,
+): Promise<AcademySubscription> {
+  const { data } = await apiClient.post<AcademySubscription>(
+    `/academy/subscription-requests/${requestId}/confirm`,
   );
   return data;
 }

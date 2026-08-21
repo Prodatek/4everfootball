@@ -78,16 +78,17 @@ model Organisation {
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
-  members               OrganisationMember[]
-  competitions          Competition[]
-  teams                 Team[]
-  payments              Payment[]
-  invoices              Invoice[]
-  mediaPackEntitlements MediaPackEntitlement[]
-  sponsorEntitlements   SponsorEntitlement[]
-  academyAgeGroups      AcademyAgeGroup[]
-  academyAttendance     AcademyAttendance[]
-  academySubscriptions  AcademySubscription[]
+  members                     OrganisationMember[]
+  competitions                Competition[]
+  teams                       Team[]
+  payments                    Payment[]
+  invoices                    Invoice[]
+  mediaPackEntitlements       MediaPackEntitlement[]
+  sponsorEntitlements         SponsorEntitlement[]
+  academyAgeGroups            AcademyAgeGroup[]
+  academyAttendance           AcademyAttendance[]
+  academySubscriptions        AcademySubscription[]
+  academySubscriptionRequests AcademySubscriptionRequest[]
 
   @@map("organisations")
 }
@@ -676,8 +677,9 @@ model Invoice {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
-  lines               InvoiceLine[]
-  academySubscription AcademySubscription?
+  lines                      InvoiceLine[]
+  academySubscription        AcademySubscription?
+  academySubscriptionRequest AcademySubscriptionRequest?
 
   @@index([organisationId])
   @@map("invoices")
@@ -929,4 +931,28 @@ model AcademySubscription {
 
   @@index([organisationId])
   @@map("academy_subscriptions")
+}
+
+// The gap between "an organiser chose a plan" and "we've actually been
+// paid" — subscribe() used to create an AcademySubscription the instant a
+// plan was chosen, with no payment step at all (a real reliability bug,
+// flagged by the user directly). Now: choosing a plan creates the invoice
+// and one of these rows; the AcademySubscription itself is only created
+// once a platform admin confirms the invoice is paid (see
+// AcademySubscriptionsService.confirmAndActivate()). activatedAt null =
+// still awaiting confirmation; set once the linked AcademySubscription
+// exists.
+model AcademySubscriptionRequest {
+  id             String         @id @default(uuid())
+  organisationId String
+  organisation   Organisation   @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  planKey        AcademyPlanKey
+  prepay         Boolean
+  invoiceId      String         @unique
+  invoice        Invoice        @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  activatedAt    DateTime?
+  createdAt      DateTime       @default(now())
+
+  @@index([organisationId])
+  @@map("academy_subscription_requests")
 }

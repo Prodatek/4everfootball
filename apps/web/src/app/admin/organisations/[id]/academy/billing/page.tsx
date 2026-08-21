@@ -12,8 +12,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Container } from "@/components/layout/container";
 import { Money } from "@/components/monetisation/money";
 import { InvoiceStatusBadge } from "@/components/monetisation/invoice-status-badge";
+import { generateInvoicePdf } from "@/features/invoices/api";
 import {
   fetchCurrentSubscription,
+  fetchPendingSubscriptionRequest,
   fetchSubscriptionHistory,
   subscribeAcademyPlan,
   type AcademyPlanKey,
@@ -50,14 +52,28 @@ export default function AcademyBillingPage({
     queryFn: () => fetchSubscriptionHistory(organisationId),
   });
 
+  const { data: pendingRequest, isLoading: pendingLoading } = useQuery({
+    queryKey: ["academy-subscription-pending", organisationId],
+    queryFn: () => fetchPendingSubscriptionRequest(organisationId),
+  });
+
   const subscribeMutation = useMutation({
     mutationFn: () => subscribeAcademyPlan(organisationId, selectedPlan, prepay),
     onSuccess: () => {
-      toast.success("Plan activated");
-      void queryClient.invalidateQueries({ queryKey: ["academy-subscription", organisationId] });
-      void queryClient.invalidateQueries({ queryKey: ["academy-subscription-history", organisationId] });
+      toast.success("Plan request submitted — awaiting payment confirmation");
+      void queryClient.invalidateQueries({ queryKey: ["academy-subscription-pending", organisationId] });
     },
-    onError: () => toast.error("Failed to activate plan"),
+    onError: (error) => {
+      const message =
+        (error as { response?: { data?: { message?: string } } }).response?.data?.message;
+      toast.error(message ?? "Failed to submit plan request");
+    },
+  });
+
+  const pendingPdfMutation = useMutation({
+    mutationFn: (invoiceId: string) => generateInvoicePdf(invoiceId),
+    onSuccess: ({ url }) => window.open(url, "_blank", "noopener,noreferrer"),
+    onError: () => toast.error("Failed to generate PDF"),
   });
 
   const plan = PLANS.find((p) => p.key === selectedPlan)!;
@@ -88,13 +104,52 @@ export default function AcademyBillingPage({
               <InvoiceStatusBadge status={subscription.invoice.status} />
             </div>
           )}
-          {!subscriptionLoading && !subscription && (
+          {!subscriptionLoading && !subscription && !pendingRequest && (
             <p className="text-sm text-muted-foreground">No active plan — choose one below.</p>
+          )}
+          {!subscriptionLoading && !subscription && pendingRequest && (
+            <p className="text-sm text-muted-foreground">No active plan yet — a request is awaiting confirmation below.</p>
           )}
         </CardContent>
       </Card>
 
-      {!subscription && (
+      {!subscriptionLoading && !subscription && !pendingLoading && pendingRequest && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Awaiting payment confirmation</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-1">
+                <Badge variant="outline">{pendingRequest.planKey}</Badge>
+                <p className="text-sm text-muted-foreground">
+                  {pendingRequest.invoice.quoteNumber} · submitted {formatDate(pendingRequest.createdAt)}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <InvoiceStatusBadge status={pendingRequest.invoice.status} />
+                <Money kobo={pendingRequest.invoice.totalKobo} />
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <p className="max-w-sm text-sm text-muted-foreground">
+                This plan will activate once the platform team confirms your payment against
+                this invoice.
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={pendingPdfMutation.isPending}
+                onClick={() => pendingPdfMutation.mutate(pendingRequest.invoiceId)}
+              >
+                {pendingPdfMutation.isPending ? "Generating..." : "Download invoice PDF"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {!subscription && !pendingRequest && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Choose a band</CardTitle>
@@ -134,7 +189,7 @@ export default function AcademyBillingPage({
               disabled={subscribeMutation.isPending}
               onClick={() => subscribeMutation.mutate()}
             >
-              {subscribeMutation.isPending ? "Activating..." : "Activate plan"}
+              {subscribeMutation.isPending ? "Submitting..." : "Submit plan request"}
             </Button>
           </CardContent>
         </Card>

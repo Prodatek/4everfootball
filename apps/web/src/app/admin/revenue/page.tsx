@@ -20,6 +20,7 @@ import {
 import { Container } from "@/components/layout/container";
 import { Money } from "@/components/monetisation/money";
 import { PaymentStatusBadge } from "@/components/monetisation/payment-status-badge";
+import { InvoiceStatusBadge } from "@/components/monetisation/invoice-status-badge";
 import { useAuth } from "@/features/auth/auth-context";
 import {
   confirmBankTransfer,
@@ -30,6 +31,10 @@ import {
   type PaymentWithOrganisation,
 } from "@/features/payments/api";
 import { TransferConfirmDialog } from "@/features/payments/transfer-confirm-dialog";
+import {
+  confirmSubscriptionRequest,
+  fetchPendingSubscriptionRequests,
+} from "@/features/academy/api";
 
 function formatDateTime(value: string) {
   return new Date(value).toLocaleString("en-NG", {
@@ -74,6 +79,24 @@ export default function RevenueAdminPage() {
     queryKey: ["webhook-events", webhookPage],
     queryFn: () => fetchWebhookEvents(webhookPage),
     enabled: isSuperAdmin,
+  });
+
+  const {
+    data: academyRequests,
+    isLoading: academyRequestsLoading,
+  } = useQuery({
+    queryKey: ["academy-subscription-requests"],
+    queryFn: fetchPendingSubscriptionRequests,
+    enabled: isSuperAdmin,
+  });
+
+  const confirmAcademyMutation = useMutation({
+    mutationFn: (requestId: string) => confirmSubscriptionRequest(requestId),
+    onSuccess: () => {
+      toast.success("Payment confirmed — academy plan activated");
+      void queryClient.invalidateQueries({ queryKey: ["academy-subscription-requests"] });
+    },
+    onError: () => toast.error("Failed to confirm payment"),
   });
 
   function invalidateAfterConfirm() {
@@ -244,6 +267,60 @@ export default function RevenueAdminPage() {
                           Mark paid by transfer
                         </Button>
                       )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Academy plan requests awaiting confirmation</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {academyRequestsLoading && <Skeleton className="h-24 rounded-md" />}
+          {!academyRequestsLoading && academyRequests?.length === 0 && (
+            <p className="text-sm text-muted-foreground">Nothing awaiting confirmation.</p>
+          )}
+          {!academyRequestsLoading && academyRequests && academyRequests.length > 0 && (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Organisation</TableHead>
+                  <TableHead>Plan</TableHead>
+                  <TableHead>Invoice</TableHead>
+                  <TableHead>Amount</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Submitted</TableHead>
+                  <TableHead className="text-right">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {academyRequests.map((request) => (
+                  <TableRow key={request.id}>
+                    <TableCell>{request.organisation.name}</TableCell>
+                    <TableCell>{request.planKey}</TableCell>
+                    <TableCell className="text-muted-foreground">{request.invoice.quoteNumber}</TableCell>
+                    <TableCell>
+                      <Money kobo={request.invoice.totalKobo} />
+                    </TableCell>
+                    <TableCell>
+                      <InvoiceStatusBadge status={request.invoice.status} />
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {formatDateTime(request.createdAt)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        size="sm"
+                        disabled={confirmAcademyMutation.isPending}
+                        onClick={() => confirmAcademyMutation.mutate(request.id)}
+                      >
+                        Confirm payment &amp; activate
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}

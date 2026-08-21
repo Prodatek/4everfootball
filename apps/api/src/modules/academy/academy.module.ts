@@ -11,7 +11,10 @@ import { AcademySubscriptionsService } from './application/academy-subscriptions
 import { TermlyReportService } from './application/termly-report.service';
 import { AcademyController } from './presentation/academy.controller';
 import { AcademyAttendanceController } from './presentation/academy-attendance.controller';
-import { AcademySubscriptionsController } from './presentation/academy-subscriptions.controller';
+import {
+  AcademySubscriptionRequestsController,
+  AcademySubscriptionsController,
+} from './presentation/academy-subscriptions.controller';
 import { TermlyReportController } from './presentation/termly-report.controller';
 
 @Module({
@@ -27,6 +30,7 @@ import { TermlyReportController } from './presentation/termly-report.controller'
     AcademyController,
     AcademyAttendanceController,
     AcademySubscriptionsController,
+    AcademySubscriptionRequestsController,
     TermlyReportController,
   ],
   providers: [
