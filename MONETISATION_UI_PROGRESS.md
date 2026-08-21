@@ -4,6 +4,18 @@ Running log per `MONETISATION_UI_BRIEF.md` §8.5. Newest entries first.
 
 ---
 
+## Post-Phase-B reversal — Standalone `/account/club` removed entirely
+
+**User's explicit direction, immediately after the previous fix**: don't keep a standalone team-claim page at all — organisation setup and membership should happen exclusively through the existing `/admin/organisations` flow. Deleted `/account/club` entirely (page + its dashboard entry card). The competition-embedded claim step (`/register/[slug]/start`) remains the only place a team is claimed, still gated on already being an organisation member (the fix immediately above), unchanged otherwise. The "skip the claim step if the org already owns a team" correctness fix stays — it's not specific to the now-removed standalone page, it also applies whenever an org registers for a second competition after already claiming a team for a first one.
+
+## Post-Phase-B fix — Removed self-service organisation creation
+
+**User's explicit direction, immediately after the standalone claim flow above shipped**: neither the new `/account/club` page nor the original Phase B wizard should let a user create their own organisation. Claiming a team should only be reachable for a user who is already a **member** of an organisation (added via the existing `/admin/organisations` "Add member" flow) — not for anyone who just signs up and self-serves their own club/school/academy into existence.
+
+- Removed the "create your club" form entirely from both `/account/club` and `/register/[slug]/start`'s "Club" step. A user with no organisation membership now sees a plain "Your account isn't linked to a club, school, or academy yet — ask your organisation's admin to add you as a member" message and a "check again" refetch button — no form, no way to create one themselves.
+- `createOrganisation()` itself is untouched and still used exactly where it always was: the platform-admin-only `/admin/organisations` "New organisation" dialog. This change only removes the two *self-service* callers.
+- Verified live with a fresh test account: confirmed the gate message (no create-org form) appears with no organisation membership, then added that same user as a member of a real organisation via the existing admin "Add member" endpoint and confirmed the claim UI unlocks immediately, with no other change needed.
+
 ## Post-Phase-B fix — Standalone team-claim flow
 
 **Reported directly by the user.** `claimTeam()` was called from exactly one place in the whole codebase: inside a *specific competition's* registration wizard (`/register/[slug]/start`, step 3 of "Account → Club → Team"). A club/school/academy had no way to claim their team ahead of time, independent of any competition — they'd have to walk through one specific competition's wizard just to reach the claim step, even if entering that competition wasn't the actual goal yet. Confirmed by grep, not assumed: every link to `/register/[slug]/...` in the app originates from within that flow itself — nothing on the public competition page or the organiser's own dashboard links to it either, so even the organiser side of "share this link" had no way to find the URL.

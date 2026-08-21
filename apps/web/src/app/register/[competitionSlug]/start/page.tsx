@@ -5,10 +5,9 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 import { toast } from "sonner";
-import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -18,19 +17,10 @@ import { Stepper } from "@/features/competitions/wizard/stepper";
 import { useAuth } from "@/features/auth/auth-context";
 import { registerSchema, type RegisterFormValues } from "@/features/auth/schemas";
 import { fetchCompetitionBySlug } from "@/features/competitions/api";
-import {
-  createOrganisation,
-  fetchMyOrganisations,
-  type Organisation,
-} from "@/features/organisations/api";
+import { fetchMyOrganisations } from "@/features/organisations/api";
 import { claimTeam, fetchTeams } from "@/features/teams/api";
 
 const STEPS = ["Account", "Club", "Team"];
-
-const orgSchema = z.object({
-  name: z.string().min(2, "Club name is required").max(120),
-});
-type OrgFormValues = z.infer<typeof orgSchema>;
 
 export default function StartRegistrationPage({
   params,
@@ -39,30 +29,39 @@ export default function StartRegistrationPage({
 }) {
   const { competitionSlug } = use(params);
   const router = useRouter();
-  const queryClient = useQueryClient();
   const { user, isLoading: authLoading, register: registerUser } = useAuth();
 
   const [teamSearch, setTeamSearch] = useState("");
-  const [selectedOrg, setSelectedOrg] = useState<Organisation | null>(null);
 
   const { data: competition } = useQuery({
     queryKey: ["competition", competitionSlug],
     queryFn: () => fetchCompetitionBySlug(competitionSlug),
   });
 
-  const { data: myOrgs, isLoading: orgsLoading } = useQuery({
+  // §5 B2, revised at the user's explicit direction: a club/school/academy
+  // account is never self-service-created here (or anywhere else) — an
+  // organisation must already exist and this user must already be one of
+  // its members (added via /admin/organisations' "Add member" flow) before
+  // they can reach the claim step. No "create your club" form exists
+  // anymore; myOrgs staying empty is the terminal state for step 1, not a
+  // form to fill in.
+  const {
+    data: myOrgs,
+    isLoading: orgsLoading,
+    refetch: refetchMyOrgs,
+  } = useQuery({
     queryKey: ["my-organisations"],
     queryFn: fetchMyOrganisations,
     enabled: !!user,
   });
 
-  const activeOrg = selectedOrg ?? myOrgs?.[0] ?? null;
+  const activeOrg = myOrgs?.[0] ?? null;
 
-  // §5 B2: a team can now also be claimed ahead of time, outside this
-  // wizard (/account/club) — if that already happened, searching
-  // "unclaimed" teams here would never find it again (it's claimed), a
-  // dead end. Skip straight to the squad builder for whichever team the
-  // org already owns rather than showing a claim step that can't succeed.
+  // §5 B2: an org's team may already be claimed from an earlier
+  // competition's run through this same wizard — searching "unclaimed"
+  // teams here would never find it again (it's claimed), a dead end. Skip
+  // straight to the squad builder for whichever team the org already owns
+  // rather than showing a claim step that can't succeed.
   const { data: existingTeams, isLoading: existingTeamsLoading } = useQuery({
     queryKey: ["organisation-teams", activeOrg?.id],
     queryFn: () => fetchTeams({ organisationId: activeOrg!.id, limit: 1 }),
@@ -105,23 +104,6 @@ export default function StartRegistrationPage({
       setAccountSubmitting(false);
     }
   }
-
-  // --- Step 1: club (organisation) ---
-  const {
-    register: registerOrgField,
-    handleSubmit: handleOrgSubmit,
-    formState: { errors: orgErrors },
-  } = useForm<OrgFormValues>({ resolver: zodResolver(orgSchema) });
-
-  const createOrgMutation = useMutation({
-    mutationFn: (values: OrgFormValues) => createOrganisation({ name: values.name, type: "CLUB" }),
-    onSuccess: (org) => {
-      toast.success("Club account created");
-      setSelectedOrg(org);
-      void queryClient.invalidateQueries({ queryKey: ["my-organisations"] });
-    },
-    onError: () => toast.error("Failed to create club account"),
-  });
 
   // --- Step 2: claim a team ---
   const { data: teamResults } = useQuery({
@@ -204,27 +186,21 @@ export default function StartRegistrationPage({
           )}
 
           {step === 1 && (
-            <form
-              onSubmit={handleOrgSubmit((values) => createOrgMutation.mutate(values))}
-              className="flex flex-col gap-4"
-            >
+            <div className="flex flex-col gap-4">
               {orgsLoading ? (
                 <p className="text-sm text-muted-foreground">Checking your account...</p>
               ) : (
                 <>
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="clubName">Club name</Label>
-                    <Input id="clubName" placeholder="e.g. Lagos Comets FC" {...registerOrgField("name")} />
-                    {orgErrors.name && (
-                      <p className="text-sm text-destructive">{orgErrors.name.message}</p>
-                    )}
-                  </div>
-                  <Button type="submit" disabled={createOrgMutation.isPending}>
-                    {createOrgMutation.isPending ? "Creating..." : "Continue"}
+                  <p className="text-sm text-muted-foreground">
+                    Your account isn&apos;t linked to a club, school, or academy yet. Ask your
+                    organisation&apos;s admin to add you as a member, then come back here.
+                  </p>
+                  <Button variant="outline" className="w-fit" onClick={() => refetchMyOrgs()}>
+                    I&apos;ve been added — check again
                   </Button>
                 </>
               )}
-            </form>
+            </div>
           )}
 
           {step === 2 && (
