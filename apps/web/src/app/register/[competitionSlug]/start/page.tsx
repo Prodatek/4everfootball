@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -58,8 +58,27 @@ export default function StartRegistrationPage({
 
   const activeOrg = selectedOrg ?? myOrgs?.[0] ?? null;
 
+  // §5 B2: a team can now also be claimed ahead of time, outside this
+  // wizard (/account/club) — if that already happened, searching
+  // "unclaimed" teams here would never find it again (it's claimed), a
+  // dead end. Skip straight to the squad builder for whichever team the
+  // org already owns rather than showing a claim step that can't succeed.
+  const { data: existingTeams, isLoading: existingTeamsLoading } = useQuery({
+    queryKey: ["organisation-teams", activeOrg?.id],
+    queryFn: () => fetchTeams({ organisationId: activeOrg!.id, limit: 1 }),
+    enabled: !!activeOrg,
+  });
+  const existingTeam = existingTeams?.data[0] ?? null;
+
+  useEffect(() => {
+    if (existingTeam) {
+      router.replace(`/register/${competitionSlug}/squad/${existingTeam.slug}`);
+    }
+  }, [existingTeam, competitionSlug, router]);
+
   // Step index derived from state, not tracked separately — each step's
-  // own prerequisite (logged in, has a club) decides whether it's shown.
+  // own prerequisite (logged in, has a club, has no team yet) decides
+  // whether it's shown.
   const step = !user ? 0 : !activeOrg ? 1 : 2;
 
   // --- Step 0: account ---
@@ -120,7 +139,7 @@ export default function StartRegistrationPage({
     onError: () => toast.error("Failed to claim this team — it may already belong to another club"),
   });
 
-  if (authLoading) {
+  if (authLoading || (step === 2 && (existingTeamsLoading || existingTeam))) {
     return (
       <div className="flex flex-1 items-center justify-center p-6 text-muted-foreground">
         Loading...

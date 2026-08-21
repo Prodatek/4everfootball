@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/features/auth/auth-context";
@@ -53,6 +54,19 @@ export default function DashboardPage() {
             <span className="text-muted-foreground">Roles:</span>{" "}
             {user.roles.join(", ")}
           </p>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Your club, school, or academy</CardTitle>
+        </CardHeader>
+        <CardContent className="flex items-center justify-between gap-4">
+          <p className="text-sm text-muted-foreground">
+            Set up your account and claim your team — before you register for any competition.
+          </p>
+          <Button render={<Link href="/account/club" />} variant="outline" className="shrink-0">
+            Get started
+          </Button>
         </CardContent>
       </Card>
     </div>
