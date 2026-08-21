@@ -160,7 +160,9 @@ function AgeGroupRoster({
                 </span>
                 <Select value={moveTarget} onValueChange={(value) => setMoveTarget(value ?? "")}>
                   <SelectTrigger className="w-48">
-                    <SelectValue placeholder="Move to age group..." />
+                    <SelectValue placeholder="Move to age group...">
+                      {(v: string) => otherAgeGroups.find((g) => g.id === v)?.name ?? "Move to age group..."}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {otherAgeGroups.map((g) => (

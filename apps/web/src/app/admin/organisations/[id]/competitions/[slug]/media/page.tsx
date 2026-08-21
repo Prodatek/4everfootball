@@ -109,7 +109,9 @@ export default function CompetitionMediaLibraryPage({
       <div className="flex flex-wrap gap-3">
         <Select value={template} onValueChange={(v) => setTemplate((v ?? "ALL") as GraphicTemplate | "ALL")}>
           <SelectTrigger className="w-48">
-            <SelectValue placeholder="Type" />
+            <SelectValue placeholder="Type">
+              {(v: string) => (v === "ALL" ? "All types" : GRAPHIC_TEMPLATE_LABELS[v as GraphicTemplate])}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="ALL">All types</SelectItem>
@@ -123,7 +125,11 @@ export default function CompetitionMediaLibraryPage({
 
         <Select value={teamId} onValueChange={(v) => setTeamId(v ?? "ALL")}>
           <SelectTrigger className="w-48">
-            <SelectValue placeholder="Club" />
+            <SelectValue placeholder="Club">
+              {(v: string) =>
+                v === "ALL" ? "All clubs" : (entries?.find((e) => e.teamId === v)?.name ?? "All clubs")
+              }
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="ALL">All clubs</SelectItem>
@@ -137,7 +143,13 @@ export default function CompetitionMediaLibraryPage({
 
         <Select value={fixtureId} onValueChange={(v) => setFixtureId(v ?? "ALL")}>
           <SelectTrigger className="w-56">
-            <SelectValue placeholder="Match" />
+            <SelectValue placeholder="Match">
+              {(v: string) => {
+                if (v === "ALL") return "All matches";
+                const fixture = fixtures?.data.find((f) => f.id === v);
+                return fixture ? `${fixture.homeTeam.name} v ${fixture.awayTeam.name}` : "All matches";
+              }}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="ALL">All matches</SelectItem>
